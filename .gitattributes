@@ -1,0 +1,7 @@
+# Normalise line endings so a Windows checkout doesn't produce CRLF diffs.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.gif binary
+*.pdf binary

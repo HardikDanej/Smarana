@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Editors / IDEs
+.vscode/
+.idea/
+*.swp
+
+# OS cruft
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local, per-project memory state. The tracked copy lives in examples/MEMORY.md;
+# a MEMORY.md at the repo root would be someone's actual working state, not source.
+/MEMORY.md

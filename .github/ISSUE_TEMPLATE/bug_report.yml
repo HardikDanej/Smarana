@@ -1,0 +1,69 @@
+name: Bug report
+description: Something in the pipeline, schema, or test harness behaves incorrectly.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. If this is a **security** issue, stop here and follow [SECURITY.md](../blob/main/SECURITY.md) instead — do not file it publicly.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part of Smṛti?
+      options:
+        - SKILL.md (the orchestrator / pipeline)
+        - workflows/initialize-memory.md
+        - workflows/consolidate-memory.md
+        - workflows/mcp-handshake.md
+        - schemas/memory-schema.json
+        - tests/ (reference implementation or harness)
+        - docs/ or examples/
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you observe, and what did you expect instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: |
+        If this involves a memory state, paste the relevant `MEMORY.md` — **with any real project details, credentials, or personal data removed**.
+      placeholder: |
+        1. Starting MEMORY.md contained ...
+        2. Ran the pipeline / triggered "save state"
+        3. Result was ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: invariant
+    attributes:
+      label: Does this break one of the documented invariants?
+      description: See the list in CONTRIBUTING.md.
+      options:
+        - "No / not sure"
+        - "Hard cap exceeded (120 lines / ~800 tokens)"
+        - "Tier 3 rule was dropped by volume pressure"
+        - "A blocked or in_progress item collapsed"
+        - "Something was persisted without Tier Resolution"
+        - "Content was fabricated (invented task, decision, or rule)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: |
+        Persistence mode: MCP / artifact
+        Python version (if the test harness is involved):
+        Smṛti version:

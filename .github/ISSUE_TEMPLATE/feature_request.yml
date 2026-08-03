@@ -1,0 +1,46 @@
+name: Feature request
+description: Propose a change to the specification, schema, or tooling.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the situation you hit, not the solution you have in mind. Solutions are easier to judge against a concrete problem.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+    validations:
+      required: true
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: What would this touch?
+      multiple: true
+      options:
+        - SKILL.md pipeline logic
+        - A workflow file
+        - schemas/memory-schema.json (breaking change to the memory contract)
+        - Tests / reference implementation
+        - Docs only
+    validations:
+      required: true
+
+  - type: textarea
+    id: invariants
+    attributes:
+      label: Effect on the documented invariants
+      description: |
+        CONTRIBUTING.md lists five invariants (hard cap, Tier 3 never volume-pruned, blocked/in_progress never collapse, nothing persisted without Tier Resolution, nothing fabricated). Does this proposal preserve all five? If it can't, say which and why the trade is worth it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
