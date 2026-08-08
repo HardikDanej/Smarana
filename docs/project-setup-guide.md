@@ -44,6 +44,28 @@ If you already know the stack, constraints, or first task, fill those in now ins
 
 Anything Claude should treat as ground truth for this specific project goes in Knowledge alongside `MEMORY.md`: schema dumps, API contracts, style guides, prior docs. `MEMORY.md` is the *only* file the memory engine writes to. Everything else is static reference material it reads but never modifies.
 
+## 3b. Optional: switch on real MCP mode
+
+By default (step 1's Custom Instructions text) this Project runs in
+artifact mode — you paste `MEMORY.md` back into Knowledge by hand after
+every save. If you've deployed the Smṛti memory server (see
+[`../server/README.md`](../server/README.md)) and added it as a Connector
+in claude.ai, drop the artifact-mode line from step 1's Custom Instructions
+and replace it with:
+
+```
+An MCP memory server is connected here. Use it in MCP mode: on every
+Persistence Handshake, call write_file(project="<this Project's exact
+name>", content=<rendered MEMORY.md>) and, at session start, call
+read_file(project="<this Project's exact name>") instead of searching
+Knowledge for MEMORY.md. Do not also maintain a MEMORY.md copy in
+Knowledge once MCP mode is on — the server is the single source of truth.
+```
+
+Use the *exact* Project name as the `project` argument, consistently,
+every session — the server uses it to keep this Project's memory isolated
+from every other Project connected to the same server.
+
 ## 4. Repeat per project
 
 Every new Project = new Custom Instructions paste (identical, or lightly adjusted) + a fresh seed `MEMORY.md`. Nothing here is shared across Projects unless you deliberately copy a file over. That isolation is what Claude Projects already guarantees natively.

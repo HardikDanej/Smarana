@@ -13,8 +13,16 @@ Use the `PERSISTENCE_MODE` established during Phase 1. Do not re-probe unless th
 
 | Available tool namespace | Write call | Read call (Phase 1) |
 |---|---|---|
-| `mcp__filesystem__*` | `write_file(path="MEMORY.md", content=<rendered markdown>)` | `read_file(path="MEMORY.md")` |
+| `mcp__filesystem__*` (generic single-root server) | `write_file(path="MEMORY.md", content=<rendered markdown>)` | `read_file(path="MEMORY.md")` |
+| `mcp__filesystem__*` (Smṛti memory server, see `server/README.md`) | `write_file(project=<this Claude Project's name>, content=<rendered markdown>)` | `read_file(project=<this Claude Project's name>)` |
 | `mcp__memory__*` (knowledge-graph style) | `create_entities` / `add_observations`, mapped tier-by-tier — one entity per Tier 2 ADR, one per Tier 1 task, a single `project_rules` entity holding Tier 3 | `read_graph()` |
+
+When the connected server exposes a `project` parameter (multi-tenant
+servers, including `server/`), pass the exact Claude Project name as
+`project` on every call so state stays isolated per Project on a single
+shared server. Single-root filesystem servers scoped to one directory per
+connection don't need this — omit `project` if the tool signature doesn't
+accept it.
 
 3. For `mcp__filesystem__*`, render the schema-valid draft into the canonical Markdown template from `SKILL.md` before writing. For `mcp__memory__*`, map each schema array to entities and observations instead of writing raw Markdown.
 4. Write silently. Do not print the full file contents into the chat — MCP mode means the user never has to see or paste anything. Confirm with a single line, e.g., "Memory updated — 2 tasks closed, 1 new ADR."

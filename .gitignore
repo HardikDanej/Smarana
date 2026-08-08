@@ -24,3 +24,8 @@ desktop.ini
 # Local, per-project memory state. The tracked copy lives in examples/MEMORY.md;
 # a MEMORY.md at the repo root would be someone's actual working state, not source.
 /MEMORY.md
+
+# Remote memory server: secrets and actual stored user memory never get committed.
+server/.env
+server/data/
+server/*.log
