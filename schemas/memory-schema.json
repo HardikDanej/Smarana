@@ -66,7 +66,23 @@
           },
           "supersedes": {
             "type": ["string", "null"],
-            "pattern": "^ADR-[0-9]{3,}$"
+            "pattern": "^ADR-[0-9]{3,}$",
+            "description": "The ADR id this entry replaces, if any."
+          },
+          "superseded_by": {
+            "type": ["string", "null"],
+            "pattern": "^ADR-[0-9]{3,}$",
+            "description": "Back-reference set on the OLD entry when a newer ADR supersedes it — the structured, queryable counterpart to `supersedes`, set on both sides of the link in the same write. Null while status is active."
+          },
+          "source": {
+            "type": ["string", "null"],
+            "minLength": 3,
+            "description": "Provenance: what conversation/session produced this decision, e.g. '2026-08-08 — tunnel auth discussion'. Free text, not a structured ID Claude doesn't reliably have access to."
+          },
+          "last_referenced": {
+            "type": ["string", "null"],
+            "format": "date",
+            "description": "Most recent date this entry was actually cited or relied upon again in a later session. Drives usage-based retention in consolidate-memory.md — an entry that keeps getting referenced ages out slower than the flat 7-day timer alone would allow. Null if never referenced since it was written."
           }
         }
       }
@@ -93,6 +109,11 @@
           "updated": {
             "type": "string",
             "format": "date"
+          },
+          "source": {
+            "type": ["string", "null"],
+            "minLength": 3,
+            "description": "Provenance: what conversation/session produced this task."
           }
         }
       }

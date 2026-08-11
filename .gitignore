@@ -29,3 +29,4 @@ desktop.ini
 server/.env
 server/data/
 server/*.log
+server/oauth_store.json

@@ -16,12 +16,14 @@ Prune in this order and stop as soon as the file is back under cap. Do not skip 
 Merge overlapping or restated rules and decisions into one canonical line:
 
 - Two Tier 3 rules expressing the same constraint in different words → keep the more precise phrasing, drop the other.
-- Two Tier 2 ADRs describing the same decision at different times → keep the latest, mark it `active`, mark the earlier one `superseded` with a `supersedes` back-reference. Do not delete the superseded entry here — that happens once it ages out in Step 2.
-- Two Tier 1 tasks describing the same underlying work with different wording → merge into one, keeping the more advanced status (`in_progress` beats `todo`, `blocked` beats both until unblocked).
+- Two Tier 2 ADRs describing the same decision at different times → keep the latest, mark it `active`, mark the earlier one `superseded`. Set the link on both sides: the new ADR's `supersedes` gets the old ADR's `id`, the old ADR's `superseded_by` gets the new ADR's `id`. Do not delete the superseded entry here — that happens once it ages out in Step 2.
+- Two Tier 1 tasks describing the same underlying work with different wording → merge into one, keeping the more advanced status (`in_progress` beats `todo`, `blocked` beats both until unblocked). Keep whichever `source` is more specific; if both are equally specific, keep the earlier one.
 
 ## Step 2 — Collapse Aged History
 
-Any Tier 1 entry with `status: done` and `updated` older than 7 days, and any Tier 2 entry with `status: superseded` older than 7 days, is removed from its tier and folded into `compressed_changelog`.
+Any Tier 1 entry with `status: done` and `updated` older than 7 days is removed from its tier and folded into `compressed_changelog`.
+
+**Tier 2 uses usage-based retention, not a flat timer.** A `status: superseded` entry is eligible for collapse once 7 days have passed since whichever is more recent: its `date`, or its `last_referenced` (if set). An ADR that keeps getting cited — someone asks "why did we move off X," a later decision explicitly builds on it — has its `last_referenced` bumped by Phase 1 each time that happens (see `SKILL.md` Phase 1, step 6), which resets its collapse eligibility. An ADR nobody mentions again ages out on the plain 7-day-from-`date` schedule, same as before this feature existed. This only applies to entries already `superseded` — an `active` ADR is never collapsed by this step regardless of age or reference activity.
 
 Group by 7-day window and write exactly 2 lines per window — one line for what shipped, one line for what changed structurally — skipping whichever line has nothing to report for that window.
 

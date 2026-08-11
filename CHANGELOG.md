@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] — 2026-08-08
+
+### Added
+
+- **Remote memory MCP server** (`server/`) — gives Smṛti a real `MCP` persistence mode instead of only the artifact (copy-paste) fallback. Exposes `read_file`/`write_file`/`list_files`/`list_projects` over streamable HTTP, keyed per `project` so one server instance holds isolated memory for many Claude Projects.
+- **Real OAuth 2.1 on the memory server** (`server/oauth_provider.py`) — dynamic client registration (RFC 7591), PKCE (RFC 7636), and a password-gated login page, so claude.ai's Connector flow ends at an actual credential check instead of the tunnel URL being the only protection. Falls back to no auth when `SMRITI_PUBLIC_HOST`/`SMRITI_LOGIN_PASSWORD` aren't set.
+- **Provenance tags** — `tier2_architecture_log[].source` and `tier1_active_tasks[].source`: a short free-text note on which conversation/session produced the entry.
+- **Usage-based retention for Tier 2** — `tier2_architecture_log[].last_referenced`. A superseded ADR that keeps getting cited again in later sessions resets its own collapse eligibility instead of aging out on a flat 7-day-from-creation timer.
+- **Structured supersedes link** — `tier2_architecture_log[].superseded_by`, the back-reference counterpart to the existing `supersedes` field. Both fields are now set on both sides of a supersession in the same write, making "what replaced X" and "what did Y replace" both directly queryable instead of requiring a parse of `rationale` prose.
+
+### Changed
+
+- `schema_version` remains `2.0.0` — every field above is optional and additive; existing `MEMORY.md` files validate unchanged.
+
 ## [2.1.0] — 2026-08-03
 
 ### Changed

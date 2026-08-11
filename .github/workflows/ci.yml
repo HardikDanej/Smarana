@@ -42,6 +42,36 @@ jobs:
       - name: Run the test suite
         run: python -m unittest discover -s tests -v
 
+  server-tests:
+    name: memory server tests (python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: server/requirements.txt
+
+      - name: Install server dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r server/requirements.txt
+
+      - name: Run the server's own test suite
+        # Explicit module target, not `discover` — test_client.py and
+        # test_oauth_flow.py in the same directory are manual smoke tests
+        # that talk to a live server/tunnel and are not meant to run here.
+        run: cd server && python -m unittest test_server -v
+
   validate-schema:
     name: schema is valid JSON
     runs-on: ubuntu-latest

@@ -9,7 +9,7 @@ triggers:
   - "project context"
   - "load memory"
   - "checkpoint"
-version: 2.1.0
+version: 2.2.0
 ---
 
 # Smṛti — Tier-Aware Project Memory
@@ -45,6 +45,7 @@ Run this 4-phase state machine on every trigger. Do not skip phases — a phase 
    - `ARTIFACT` mode → search Project Knowledge / Files for `MEMORY.md`.
 4. **If no prior state is found in either mode**, halt this pipeline and execute `workflows/initialize-memory.md` instead. Do not proceed to Phase 2 against an empty state.
 5. If prior state is found, parse it against `schemas/memory-schema.json`. If parsing fails (malformed tiers, missing required keys), treat it as corrupted: preserve the raw text as a single `tier1_active_tasks` recovery note ("MEMORY.md failed schema validation on <date>; original content archived") and rebuild a valid skeleton around it.
+6. **Usage tracking:** as the conversation proceeds, note every existing Tier 2 ADR whose `decision` or `rationale` is actually cited, questioned, or built upon — not merely present in the loaded file. At Phase 4, stamp today's date into that ADR's `last_referenced` field. This is the signal `consolidate-memory.md`'s usage-based retention reads; an ADR nobody mentions again just ages on the flat timer.
 
 ### Phase 2 — Tier Resolution Matrix
 
@@ -61,7 +62,8 @@ Classify every new fact surfaced this session into exactly one tier. When a fact
 2. Ask: *Does this stop being true the moment the current task finishes?* → Tier 1.
 3. Ask: *Is this a structural or technical choice future work must respect?* → Tier 2, formatted as an ADR (`id`, `date`, `decision`, `rationale`, `status`).
 4. Ask: *Is this a standing constraint the user stated independent of any single task ("always use X", "never do Y")?* → Tier 3.
-5. Write the resolved fact into the in-memory draft of `MEMORY.md` under its tier heading. A new Tier 2 entry that contradicts an existing `active` ADR marks the old one `superseded` — it is not deleted here; that happens once it ages out in `consolidate-memory.md`.
+5. Write the resolved fact into the in-memory draft of `MEMORY.md` under its tier heading. Stamp `source` on every new Tier 1 or Tier 2 entry — a short free-text description of what in this conversation produced it, e.g. `"2026-08-08 — tunnel auth discussion"`. Claude has no reliable access to a structured conversation/session ID, so this is deliberately a human-readable label, not a machine key.
+6. A new Tier 2 entry that contradicts an existing `active` ADR marks the old one `superseded` — it is not deleted here; that happens once it ages out in `consolidate-memory.md`. Set the link on **both** entries in the same write: the new ADR's `supersedes` points at the old ADR's `id`, and the old ADR's `superseded_by` points at the new ADR's `id`. This is a structured, queryable back-reference — not just prose in `rationale` — so "what superseded ADR-003" and "what did ADR-006 replace" are both answerable by reading the field, not by parsing text.
 
 ### Phase 3 — Compression / Garbage Collection
 
@@ -85,9 +87,10 @@ Execute `workflows/mcp-handshake.md`. It writes the finalized, schema-valid stat
 
 The table in Phase 2 is authoritative; these examples resolve the edge cases that come up in practice.
 
-- **Tier 1 example:** "Fix null-pointer in `checkout.ts` line 214 — repro'd, root cause is unguarded `cart.items[0]`." Status moves `todo → in_progress → done`. A `done` item stays visible in Tier 1 for exactly one consolidation cycle, then collapses into the Compressed Changelog.
-- **Tier 2 example:** ADR — "Switched session storage from Redis to Postgres-backed sessions (2026-07-20)." Rationale: "Redis add-on cost exceeded budget at current scale." Remains `active` until an explicit superseding decision is made.
+- **Tier 1 example:** "Fix null-pointer in `checkout.ts` line 214 — repro'd, root cause is unguarded `cart.items[0]`." Status moves `todo → in_progress → done`. A `done` item stays visible in Tier 1 for exactly one consolidation cycle, then collapses into the Compressed Changelog. `source: "2026-07-20 — checkout crash triage"`.
+- **Tier 2 example:** ADR — "Switched session storage from Redis to Postgres-backed sessions (2026-07-20)." Rationale: "Redis add-on cost exceeded budget at current scale." Remains `active` until an explicit superseding decision is made. `source: "2026-07-20 — infra cost review"`, `last_referenced: null` until a later session actually cites this ADR again — at which point Phase 1 stamps that date in, and `consolidate-memory.md`'s usage-based retention treats it as freshly relevant even if it's since been marked `superseded`.
 - **Tier 3 example:** "Always use named exports, never default exports, in this codebase." Never expires and is never auto-collapsed — only ever superseded by an explicit, contradicting user statement.
+- **Supersedes/superseded_by example:** ADR-006 replaces ADR-003. Write `supersedes: "ADR-003"` on ADR-006 *and* `superseded_by: "ADR-006"` on ADR-003, in the same Phase 2 write — both fields, not just a prose mention, so the relationship is queryable from either entry without parsing `rationale` text.
 
 ---
 
@@ -121,11 +124,11 @@ Last updated: <ISO-8601 timestamp>
 - <standing rule 2>
 
 ## Tier 2 — System Architecture & Decisions
-- [ADR-001] <date> — <decision>. Rationale: <rationale>. Status: active
-- [ADR-002] <date> — <decision>. Rationale: <rationale>. Status: superseded (by ADR-004)
+- [ADR-001] <date> — <decision>. Rationale: <rationale>. Status: active. Source: <source>. Last referenced: <last_referenced or "never">
+- [ADR-002] <date> — <decision>. Rationale: <rationale>. Status: superseded (by ADR-004). Source: <source>
 
 ## Tier 1 — Active Execution
-- [in_progress] <task>
+- [in_progress] <task> (source: <source>)
 - [todo] <task>
 - [blocked] <task> — reason: <reason>
 
@@ -133,7 +136,9 @@ Last updated: <ISO-8601 timestamp>
 - [2026-07-13 to 2026-07-19]: <2-line summary of collapsed history>
 ```
 
-Field-to-schema mapping: `Tier 3` bullets → `tier3_domain_rules[]`; `Tier 2` bullets → `tier2_architecture_log[]` objects; `Tier 1` bullets → `tier1_active_tasks[]` objects; `Compressed Changelog` bullets → `compressed_changelog[]` objects.
+`source` is optional on Tier 1 items — omit the `(source: ...)` suffix entirely rather than write `(source: null)` when it wasn't captured. Same for Tier 2's `Last referenced` — omit that clause when `last_referenced` is null instead of writing "never" if it clutters a short line.
+
+Field-to-schema mapping: `Tier 3` bullets → `tier3_domain_rules[]`; `Tier 2` bullets → `tier2_architecture_log[]` objects (now including `supersedes`, `superseded_by`, `source`, `last_referenced`); `Tier 1` bullets → `tier1_active_tasks[]` objects (now including `source`); `Compressed Changelog` bullets → `compressed_changelog[]` objects.
 
 ---
 

@@ -39,6 +39,12 @@ smriti/
 │   └── MEMORY.md                  # A populated, schema-valid example
 ├── docs/
 │   └── project-setup-guide.md     # Copy-paste setup steps for a new Claude Project
+├── server/
+│   ├── server.py                  # Remote memory MCP server (streamable HTTP)
+│   ├── oauth_provider.py          # Minimal OAuth 2.1 authorization server for the Connector flow
+│   ├── test_client.py             # Manual smoke test: read/write/list against a running server
+│   ├── test_oauth_flow.py         # Manual smoke test: full OAuth flow against a live tunnel
+│   └── README.md                  # Setup: run, tunnel, connect as a claude.ai Connector
 └── tests/
     ├── smriti_lib.py              # Reference implementation of the deterministic scaffolding
     ├── test_pipeline.py           # Test harness: schema, GC, hard cap, idempotency
@@ -75,7 +81,7 @@ python -m unittest discover -s tests -v
 
 ## Status
 
-Schema validated against Draft-07 JSON Schema. Pipeline logic reviewed for internal consistency across all five Skill files. The deterministic parts of the pipeline (schema conformance, hard-cap enforcement, aged-history collapse, idempotency) are covered by an automated test suite in [`tests/`](tests/), 15/15 passing. Phase 2 (Tier Resolution) is a runtime judgment call, not a pure function, and is out of scope for automated testing; see [`tests/README.md`](tests/README.md). Version `2.1.0`.
+Schema validated against Draft-07 JSON Schema. Pipeline logic reviewed for internal consistency across all five Skill files. The deterministic parts of the pipeline (schema conformance, hard-cap enforcement, aged-history collapse, usage-based retention, idempotency) are covered by an automated test suite in [`tests/`](tests/), 22/22 passing. Phase 2 (Tier Resolution) is a runtime judgment call, not a pure function, and is out of scope for automated testing; see [`tests/README.md`](tests/README.md). The remote memory server's OAuth flow (`server/`) has its own end-to-end smoke test, `server/test_oauth_flow.py`, run manually against a live tunnel rather than in CI. Version `2.2.0`.
 
 ## Contributing
 

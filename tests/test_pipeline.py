@@ -229,6 +229,141 @@ class TestHardCapEnforcement(unittest.TestCase):
         self.assertEqual(before, after)
 
 
+class TestProvenanceAndSupersedes(unittest.TestCase):
+    """New in 2.2.0: source tags, structured supersedes/superseded_by, usage-based retention."""
+
+    def test_schema_accepts_new_optional_fields(self):
+        state = empty_state("P", "2026-08-03T00:00:00Z")
+        state["tier1_active_tasks"] = [
+            {"task": "Add rate limiting", "status": "todo", "source": "2026-08-03 — API hardening session"}
+        ]
+        state["tier2_architecture_log"] = [
+            {
+                "id": "ADR-001",
+                "date": "2026-08-01",
+                "decision": "Adopted JWT auth.",
+                "rationale": "Needed stateless auth.",
+                "status": "active",
+                "supersedes": None,
+                "superseded_by": None,
+                "source": "2026-08-01 — auth design review",
+                "last_referenced": "2026-08-03",
+            }
+        ]
+        validate(state)  # raises on failure
+
+    def test_schema_still_accepts_old_data_without_new_fields(self):
+        """Backward compatibility: no schema_version bump means pre-existing
+        MEMORY.md files with none of the new fields must keep validating."""
+        state = empty_state("P", "2026-08-03T00:00:00Z")
+        state["tier2_architecture_log"] = [
+            {
+                "id": "ADR-001",
+                "date": "2026-08-01",
+                "decision": "Adopted JWT auth.",
+                "rationale": "Needed stateless auth.",
+                "status": "active",
+            }
+        ]
+        validate(state)
+
+    def test_render_includes_source_and_last_referenced_when_present(self):
+        state = empty_state("P", "2026-08-03T00:00:00Z")
+        state["tier2_architecture_log"] = [
+            {
+                "id": "ADR-001",
+                "date": "2026-08-01",
+                "decision": "Adopted JWT auth.",
+                "rationale": "Needed stateless auth.",
+                "status": "active",
+                "source": "2026-08-01 — auth design review",
+                "last_referenced": "2026-08-03",
+            }
+        ]
+        state["tier1_active_tasks"] = [
+            {"task": "Write tests", "status": "todo", "source": "2026-08-03 — test planning"}
+        ]
+        md = render_markdown(state)
+        self.assertIn("Source: 2026-08-01 — auth design review", md)
+        self.assertIn("Last referenced: 2026-08-03", md)
+        self.assertIn("(source: 2026-08-03 — test planning)", md)
+
+    def test_render_omits_source_and_last_referenced_when_absent(self):
+        state = empty_state("P", "2026-08-03T00:00:00Z")
+        md = render_markdown(state)
+        self.assertNotIn("Source:", md)
+        self.assertNotIn("Last referenced:", md)
+        self.assertNotIn("source:", md)
+
+    def test_render_shows_bidirectional_supersedes_link(self):
+        state = empty_state("P", "2026-08-03T00:00:00Z")
+        state["tier2_architecture_log"] = [
+            {"id": "ADR-006", "date": "2026-07-19", "decision": "JWT auth.", "rationale": "Stateless.", "status": "active", "supersedes": "ADR-003"},
+            {"id": "ADR-003", "date": "2026-07-13", "decision": "Session-cookie auth.", "rationale": "Fast MVP.", "status": "superseded", "superseded_by": "ADR-006"},
+        ]
+        md = render_markdown(state)
+        self.assertIn("[ADR-006]", md)
+        self.assertIn("(supersedes ADR-003)", md)
+        self.assertIn("[ADR-003]", md)
+        self.assertIn("(superseded by ADR-006)", md)
+
+    def test_usage_based_retention_keeps_recently_referenced_superseded_adr(self):
+        """An ADR superseded long ago but cited again recently must NOT collapse
+        on the flat 7-day-from-date timer — that is the entire point of the
+        usage-based retention feature over the old pure-age rule."""
+        state = empty_state("P", "2026-08-03T00:00:00Z")
+        state["tier2_architecture_log"] = [
+            {
+                "id": "ADR-003",
+                "date": "2026-01-01",  # ancient by pure-date rules
+                "decision": "Session-cookie auth.",
+                "rationale": "Fast MVP.",
+                "status": "superseded",
+                "superseded_by": "ADR-006",
+                "last_referenced": "2026-08-01",  # cited 2 days ago
+            }
+        ]
+        import smriti_lib
+
+        original_over_cap = smriti_lib.over_cap
+        smriti_lib.over_cap = lambda s: True
+        try:
+            result = consolidate(state, "2026-08-03")
+        finally:
+            smriti_lib.over_cap = original_over_cap
+
+        # Still present — 2 days since last_referenced, not yet past the 7-day window.
+        ids = [a["id"] for a in result["tier2_architecture_log"]]
+        self.assertIn("ADR-003", ids)
+        self.assertEqual(len(result["compressed_changelog"]), 0)
+
+    def test_superseded_adr_without_last_referenced_ages_on_date_as_before(self):
+        """No last_referenced set -> falls back to the original date-only rule,
+        preserving prior behavior for entries that never used this feature."""
+        state = empty_state("P", "2026-08-03T00:00:00Z")
+        state["tier2_architecture_log"] = [
+            {
+                "id": "ADR-003",
+                "date": "2026-07-01",  # >7 days before today, never referenced since
+                "decision": "Session-cookie auth.",
+                "rationale": "Fast MVP.",
+                "status": "superseded",
+            }
+        ]
+        import smriti_lib
+
+        original_over_cap = smriti_lib.over_cap
+        smriti_lib.over_cap = lambda s: True
+        try:
+            result = consolidate(state, "2026-08-03")
+        finally:
+            smriti_lib.over_cap = original_over_cap
+
+        ids = [a["id"] for a in result["tier2_architecture_log"]]
+        self.assertNotIn("ADR-003", ids)
+        self.assertEqual(len(result["compressed_changelog"]), 1)
+
+
 class TestIdempotency(unittest.TestCase):
     """Mirrors mcp-handshake.md Step 4."""
 
@@ -258,12 +393,12 @@ class TestExampleFile(unittest.TestCase):
                 "Never log raw token values or PII, in any environment, including local dev.",
             ],
             "tier2_architecture_log": [
-                {"id": "ADR-005", "date": "2026-07-19", "decision": "Adopted refresh-token rotation on top of JWT auth.", "rationale": "Short-lived access tokens without rotation forced re-logins too often.", "status": "active"},
-                {"id": "ADR-006", "date": "2026-07-19", "decision": "Replaced session-cookie auth with JWT-based auth.", "rationale": "Needed stateless auth for horizontal scaling.", "status": "active"},
-                {"id": "ADR-003", "date": "2026-07-13", "decision": "Session-cookie auth.", "rationale": "Fastest path to a working login flow for the MVP.", "status": "superseded", "supersedes": None},
+                {"id": "ADR-005", "date": "2026-07-19", "decision": "Adopted refresh-token rotation on top of JWT auth.", "rationale": "Short-lived access tokens without rotation forced re-logins too often.", "status": "active", "source": "2026-07-19 — refresh flow design session"},
+                {"id": "ADR-006", "date": "2026-07-19", "decision": "Replaced session-cookie auth with JWT-based auth.", "rationale": "Needed stateless auth for horizontal scaling.", "status": "active", "supersedes": "ADR-003", "source": "2026-07-19 — auth architecture review"},
+                {"id": "ADR-003", "date": "2026-07-13", "decision": "Session-cookie auth.", "rationale": "Fastest path to a working login flow for the MVP.", "status": "superseded", "superseded_by": "ADR-006", "source": "2026-07-13 — MVP kickoff", "last_referenced": "2026-07-19"},
             ],
             "tier1_active_tasks": [
-                {"task": "Add rate limiting to the refresh-token endpoint", "status": "in_progress"},
+                {"task": "Add rate limiting to the refresh-token endpoint", "status": "in_progress", "source": "2026-07-20 — refresh flow design session"},
                 {"task": "Write integration tests for the rotation flow", "status": "todo"},
                 {"task": "Deploy to staging", "status": "blocked", "blocked_reason": "waiting on infra team to provision the Redis instance"},
             ],

@@ -61,22 +61,30 @@ def render_markdown(state: dict) -> str:
     lines.append("## Tier 2 — System Architecture & Decisions")
     for adr in state["tier2_architecture_log"]:
         suffix = ""
-        if adr["status"] == "superseded" and adr.get("supersedes"):
+        if adr.get("superseded_by"):
+            suffix = f" (superseded by {adr['superseded_by']})"
+        elif adr.get("supersedes"):
             suffix = f" (supersedes {adr['supersedes']})"
-        elif adr["status"] != "active":
-            suffix = ""
-        lines.append(
+        line = (
             f"- [{adr['id']}] {adr['date']} — {adr['decision']} "
             f"Rationale: {adr['rationale']}. Status: {adr['status']}{suffix}"
         )
+        if adr.get("source"):
+            line += f" Source: {adr['source']}."
+        if adr.get("last_referenced"):
+            line += f" Last referenced: {adr['last_referenced']}."
+        lines.append(line)
     lines.append("")
 
     lines.append("## Tier 1 — Active Execution")
     for task in state["tier1_active_tasks"]:
         if task["status"] == "blocked":
-            lines.append(f"- [blocked] {task['task']} — reason: {task.get('blocked_reason', '')}")
+            line = f"- [blocked] {task['task']} — reason: {task.get('blocked_reason', '')}"
         else:
-            lines.append(f"- [{task['status']}] {task['task']}")
+            line = f"- [{task['status']}] {task['task']}"
+        if task.get("source"):
+            line += f" (source: {task['source']})"
+        lines.append(line)
     lines.append("")
 
     lines.append("## Compressed Changelog")
@@ -107,9 +115,11 @@ def consolidate(state: dict, today: str) -> dict:
     """
     Implements workflows/consolidate-memory.md:
       1. Deduplicate
-      2. Collapse aged Tier 1 (done, >7 days) and superseded Tier 2 (>7 days)
-         into the Compressed Changelog, grouped by 7-day window, max 2 lines
-         per window.
+      2. Collapse aged Tier 1 (done, >7 days) into the Compressed Changelog.
+         Tier 2 uses usage-based retention: a superseded ADR collapses once
+         7 days have passed since max(date, last_referenced) — an ADR that
+         keeps getting cited resets its own collapse eligibility.
+         Grouped by 7-day window, max 2 lines per window.
       3. Compress Tier 2 rationale for remaining active ADRs (best-effort here:
          truncate to the first sentence).
       Tier 3 is never touched by volume pressure (Hard Constraint).
@@ -147,7 +157,8 @@ def consolidate(state: dict, today: str) -> dict:
         ]
         superseded_old = [
             a for a in s["tier2_architecture_log"]
-            if a["status"] == "superseded" and _days_between(a["date"], today) > 7
+            if a["status"] == "superseded"
+            and _days_between(a.get("last_referenced") or a["date"], today) > 7
         ]
 
         if done_old or superseded_old:

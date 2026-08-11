@@ -12,11 +12,11 @@ Every project gets its own subfolder under DATA_ROOT, keyed by a
 `project` argument the client passes on each call. Paths are confined to
 DATA_ROOT — no traversal outside it is possible.
 
-Auth: claude.ai's Custom Connector dialog only supports OAuth or no auth,
-not a static bearer-token header, so this server does not gate requests by
-token. Protection instead comes from the tunnel URL being a long random
-secret — never share it, and restart the tunnel (which mints a new URL) if
-you suspect it leaked.
+Auth: when SMRITI_PUBLIC_HOST and SMRITI_LOGIN_PASSWORD are both set, this
+runs a real (minimal) OAuth 2.1 authorization server — see
+oauth_provider.py — so claude.ai's Connector flow ends at an actual login,
+not just possession of the tunnel URL. Without both set, it falls back to
+no auth at all (tunnel URL is the only protection); see server/README.md.
 """
 
 import os
@@ -25,10 +25,25 @@ from pathlib import Path
 from dotenv import load_dotenv
 from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
+from starlette.requests import Request
+from starlette.responses import HTMLResponse, RedirectResponse, Response
 
 load_dotenv()
 
-DATA_ROOT = Path(os.environ.get("SMRITI_DATA_ROOT") or (Path(__file__).parent / "data")).resolve()
+
+def _resolve_data_root() -> Path:
+    """SMRITI_DATA_ROOT falls back to server/data — including when the env
+    var is present but set to an empty string, which `os.environ.get(key,
+    default)` alone does NOT catch (that only applies the default when the
+    key is absent). A prior version of this function had exactly that bug:
+    an empty .env value silently resolved DATA_ROOT to server/ itself
+    instead of server/data/. See TestDataRootEnvHandling in test_server.py.
+    """
+    raw = os.environ.get("SMRITI_DATA_ROOT")
+    return Path(raw or (Path(__file__).parent / "data")).resolve()
+
+
+DATA_ROOT = _resolve_data_root()
 DATA_ROOT.mkdir(parents=True, exist_ok=True)
 
 # The SDK's DNS-rebinding protection only allow-lists localhost Host headers
@@ -48,7 +63,32 @@ TRANSPORT_SECURITY = TransportSecuritySettings(
     allowed_origins=_allowed_origins,
 )
 
-mcp = MCPServer("smriti-memory")
+_login_password = os.environ.get("SMRITI_LOGIN_PASSWORD", "").strip()
+oauth_provider = None
+_auth_settings = None
+
+if _public_host and _login_password:
+    from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions, RevocationOptions
+    from pydantic import AnyHttpUrl
+
+    from oauth_provider import SmritiOAuthProvider
+
+    _issuer_url = AnyHttpUrl(f"https://{_public_host}")
+    oauth_provider = SmritiOAuthProvider(
+        store_path=Path(__file__).parent / "oauth_store.json",
+        login_password=_login_password,
+        public_host=_public_host,
+    )
+    _auth_settings = AuthSettings(
+        issuer_url=_issuer_url,
+        resource_server_url=_issuer_url,
+        client_registration_options=ClientRegistrationOptions(
+            enabled=True, default_scopes=["mcp"], valid_scopes=["mcp"]
+        ),
+        revocation_options=RevocationOptions(enabled=True),
+    )
+
+mcp = MCPServer("smriti-memory", auth_server_provider=oauth_provider, auth=_auth_settings)
 
 
 def _resolve(project: str, filename: str) -> Path:
@@ -98,6 +138,50 @@ def list_projects() -> list[str]:
     return sorted(p.name for p in DATA_ROOT.iterdir() if p.is_dir())
 
 
+_LOGIN_FORM = """<!doctype html>
+<html><head><title>Smriti Memory Server</title></head>
+<body style="font-family:sans-serif;max-width:360px;margin:80px auto">
+<h2>Smriti Memory Server</h2>
+<p>Sign in to authorize this connector.</p>
+<form method="post">
+<input type="hidden" name="login_token" value="{login_token}">
+<input type="password" name="password" placeholder="Password" autofocus
+       style="width:100%;padding:8px;margin:8px 0;box-sizing:border-box">
+<button type="submit" style="width:100%;padding:8px">Sign in</button>
+{error}
+</form>
+</body></html>"""
+
+_LOGIN_INVALID = "<p>This login link is invalid or has expired. Go back to claude.ai and try connecting again.</p>"
+
+
+@mcp.custom_route("/login", methods=["GET"])
+async def login_form(request: Request) -> Response:
+    login_token = request.query_params.get("login_token", "")
+    if oauth_provider is None or not oauth_provider.get_pending_login(login_token):
+        return HTMLResponse(_LOGIN_INVALID, status_code=400)
+    return HTMLResponse(_LOGIN_FORM.format(login_token=login_token, error=""))
+
+
+@mcp.custom_route("/login", methods=["POST"])
+async def login_submit(request: Request) -> Response:
+    form = await request.form()
+    login_token = str(form.get("login_token", ""))
+    password = str(form.get("password", ""))
+
+    if oauth_provider is None or not oauth_provider.get_pending_login(login_token):
+        return HTMLResponse(_LOGIN_INVALID, status_code=400)
+
+    if not oauth_provider.check_password(password):
+        error = "<p style='color:#c00'>Wrong password.</p>"
+        return HTMLResponse(_LOGIN_FORM.format(login_token=login_token, error=error), status_code=401)
+
+    redirect_url = oauth_provider.complete_login(login_token)
+    if redirect_url is None:
+        return HTMLResponse(_LOGIN_INVALID, status_code=400)
+    return RedirectResponse(redirect_url, status_code=302)
+
+
 def build_app():
     return mcp.streamable_http_app(transport_security=TRANSPORT_SECURITY)
 
@@ -107,4 +191,6 @@ if __name__ == "__main__":
 
     host = os.environ.get("SMRITI_HOST", "127.0.0.1")
     port = int(os.environ.get("SMRITI_PORT", "8787"))
+    if oauth_provider is None:
+        print("SMRITI_PUBLIC_HOST/SMRITI_LOGIN_PASSWORD not both set — running with NO AUTH.")
     uvicorn.run(build_app(), host=host, port=port)
