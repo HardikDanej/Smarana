@@ -142,5 +142,35 @@ class TestDataRootEnvHandling(unittest.TestCase):
         self.assertEqual(result, Path(real_path).resolve())
 
 
+class TestSearchMemoryIntegration(unittest.TestCase):
+    """Proves the actual wiring — write_file indexing aged-out content,
+    search_memory finding it — through the real server functions, not just
+    memory_index.py in isolation."""
+
+    def test_write_file_indexes_and_search_memory_finds_it(self):
+        content = (
+            "## Tier 2 — System Architecture & Decisions\n"
+            "- [ADR-020] 2026-08-01 — Session-cookie auth. Status: superseded (by ADR-021)\n"
+        )
+        result = server.write_file(project="search-integration", content=content)
+        self.assertIn("indexed 1 aged-out line(s)", result)
+
+        hits = server.search_memory(project="search-integration", query="session cookies", top_k=3)
+        self.assertEqual(len(hits), 1)
+        self.assertIn("ADR-020", hits[0])
+
+    def test_search_memory_empty_for_unindexed_project(self):
+        hits = server.search_memory(project="search-integration-never-written", query="anything")
+        self.assertEqual(hits, [])
+
+    def test_write_file_with_no_indexable_content_reports_no_index_note(self):
+        result = server.write_file(project="search-integration-plain", content="# just a title\n")
+        self.assertNotIn("indexed", result)
+
+    def test_search_memory_rejects_traversal_in_project(self):
+        with self.assertRaises(ValueError):
+            server.search_memory(project="../escape", query="x")
+
+
 if __name__ == "__main__":
     unittest.main()

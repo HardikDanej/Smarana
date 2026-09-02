@@ -11,7 +11,8 @@ Last updated: 2026-07-20T09:15:00Z
 - [ADR-003] 2026-07-13 — Session-cookie auth. Rationale: fastest path to a working login flow for the MVP. Status: superseded (by ADR-006). Source: 2026-07-13 — MVP kickoff. Last referenced: 2026-07-19.
 
 ## Tier 1 — Active Execution
-- [in_progress] Add rate limiting to the refresh-token endpoint (source: 2026-07-20 — refresh flow design session)
+- [done] Add refresh-token rotation middleware (gate verified)
+- [in_progress] Add rate limiting to the refresh-token endpoint (source: 2026-07-20 — refresh flow design session) (gate pending: npm test -- rate-limit.spec.ts)
 - [todo] Write integration tests for the rotation flow
 - [blocked] Deploy to staging — reason: waiting on infra team to provision the Redis instance for token blocklisting
 

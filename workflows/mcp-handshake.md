@@ -24,6 +24,14 @@ shared server. Single-root filesystem servers scoped to one directory per
 connection don't need this — omit `project` if the tool signature doesn't
 accept it.
 
+`server/`'s Smṛti memory server also exposes `search_memory(project, query,
+top_k)` — semantic search over aged-out history (superseded ADRs,
+Compressed Changelog entries) that a plain `read_file` can no longer show
+in full. This is a Phase 1 retrieval concern, not a write-path one; see
+`SKILL.md` Phase 1 for when to call it. Not every `mcp__filesystem__*`
+server has this tool — check the tool list before relying on it, and treat
+its absence as normal, not an error.
+
 3. For `mcp__filesystem__*`, render the schema-valid draft into the canonical Markdown template from `SKILL.md` before writing. For `mcp__memory__*`, map each schema array to entities and observations instead of writing raw Markdown.
 4. Write silently. Do not print the full file contents into the chat — MCP mode means the user never has to see or paste anything. Confirm with a single line, e.g., "Memory updated — 2 tasks closed, 1 new ADR."
 5. **On write failure** (tool error, auth failure, timeout): retry once. On a second failure, fall through to Step 3 (`ARTIFACT` path) for this run only, and flag the failure in one line so the user can check the connector.

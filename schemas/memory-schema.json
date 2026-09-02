@@ -114,6 +114,52 @@
             "type": ["string", "null"],
             "minLength": 3,
             "description": "Provenance: what conversation/session produced this task."
+          },
+          "gate": {
+            "type": ["object", "null"],
+            "additionalProperties": false,
+            "required": ["check", "expect", "verified"],
+            "description": "Optional, opt-in verified-completion gate (adapted from the unlazy skill's gate-contract pattern). Only attach one when the outcome is genuinely checkable by a command — most tasks won't have one, and that's fine; self-reported done stays valid when gate is null. Never fabricate verified: true — it must reflect an actually-executed check.",
+            "properties": {
+              "check": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The shell command that proves this task's outcome. Must be read and understood before ever being run — never executed blind, and never on an untrusted/inherited ledger without the user's own approval."
+              },
+              "expect": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Substring the check's combined output must contain, on a zero exit code, for the gate to count as met."
+              },
+              "verified": {
+                "type": "boolean",
+                "description": "True only after `check` was actually executed this session and its combined output contained `expect` on exit code 0. False while pending or if the check hasn't been (re-)run since the task last changed."
+              },
+              "verified_at": {
+                "type": ["string", "null"],
+                "format": "date"
+              },
+              "evidence": {
+                "type": ["string", "null"],
+                "description": "A short fingerprint of the run — e.g. exit code plus output length/hash — never the raw output itself. Mirrors unlazy's own evidence model: proof without a transcript."
+              }
+            }
+          }
+        },
+        "if": {
+          "properties": {
+            "status": { "const": "done" },
+            "gate": { "type": "object" }
+          },
+          "required": ["gate"]
+        },
+        "then": {
+          "properties": {
+            "gate": {
+              "properties": {
+                "verified": { "const": true }
+              }
+            }
           }
         }
       }

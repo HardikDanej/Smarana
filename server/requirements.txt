@@ -1,3 +1,4 @@
 mcp[cli]>=1.2
 python-dotenv>=1.0
 uvicorn>=0.30
+chromadb>=0.5

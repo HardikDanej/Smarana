@@ -66,11 +66,21 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r server/requirements.txt
 
+      - name: Cache the local embedding model
+        # test_memory_index.py's real Chroma round-trip downloads Chroma's
+        # default embedding model (~80MB) on first use. Without this, every
+        # CI run re-downloads it from scratch. Keyed on the server
+        # dependency file so a chromadb version bump gets a fresh model.
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/chroma
+          key: chroma-onnx-model-${{ hashFiles('server/requirements.txt') }}
+
       - name: Run the server's own test suite
-        # Explicit module target, not `discover` — test_client.py and
+        # Explicit module targets, not `discover` — test_client.py and
         # test_oauth_flow.py in the same directory are manual smoke tests
         # that talk to a live server/tunnel and are not meant to run here.
-        run: cd server && python -m unittest test_server -v
+        run: cd server && python -m unittest test_server test_memory_index -v
 
   validate-schema:
     name: schema is valid JSON

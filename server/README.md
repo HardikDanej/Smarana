@@ -1,9 +1,9 @@
 # Smṛti Memory Server
 
 A small remote MCP server that gives Smṛti a real `MCP` persistence mode
-instead of only the artifact (copy-paste) fallback. It exposes four tools —
-`read_file`, `write_file`, `list_files`, `list_projects` — over streamable
-HTTP, matching the `mcp__filesystem__*` calls that
+instead of only the artifact (copy-paste) fallback. It exposes five tools —
+`read_file`, `write_file`, `list_files`, `list_projects`, `search_memory` —
+over streamable HTTP, matching the `mcp__filesystem__*` calls that
 [`workflows/mcp-handshake.md`](../workflows/mcp-handshake.md) already
 expects.
 
@@ -131,12 +131,38 @@ automatically — no more copy-pasting `MEMORY.md` back into Knowledge.
 | Tool | Args | Behavior |
 |---|---|---|
 | `read_file` | `project`, `filename` (default `MEMORY.md`) | Returns file contents, or `""` if it doesn't exist yet |
-| `write_file` | `project`, `content`, `filename` (default `MEMORY.md`) | Overwrites the file |
+| `write_file` | `project`, `content`, `filename` (default `MEMORY.md`) | Overwrites the file, then re-indexes the project's aged-out memory for `search_memory` (see below) |
 | `list_files` | `project` | Filenames currently stored for that project |
 | `list_projects` | — | Every project with at least one stored file |
+| `search_memory` | `project`, `query`, `top_k` (default 5) | Semantic search over that project's superseded/deprecated Tier 2 ADRs and Compressed Changelog entries — the history a plain `read_file` can no longer surface in full |
 
 Paths are confined to `server/data/<project>/` — traversal outside it
 (`..`, absolute paths, nested slashes in `project`/`filename`) is rejected.
+
+## Semantic search over aged-out memory
+
+`write_file` triggers `memory_index.py` on every call: it pulls superseded/
+deprecated Tier 2 ADR lines and every Compressed Changelog bullet out of the
+written content — the parts `consolidate-memory.md` has already compressed
+down to a couple of terse lines to stay under the 120-line cap — and
+(re-)indexes them into a local [Chroma](https://www.trychroma.com/) vector
+store at `server/data/<project>/vector_index/`. `search_memory` queries that
+index by meaning, not exact keyword, so "why did we move off X" can find the
+right superseded decision even if the current `MEMORY.md` only says
+"Superseded: session-cookie auth (ADR-003)."
+
+**Free by design.** Indexing uses Chroma's default local embedding model
+(`all-MiniLM-L6-v2`, via `onnxruntime`) — no API key, no per-query cost. That
+model (~80MB) downloads once from Hugging Face's CDN the first time
+`write_file` indexes anything, cached under `~/.cache/chroma` afterward; every
+call after that first download runs fully offline. If you'd rather pre-warm
+this instead of hitting it on a real write, run the test suite once (below) —
+it triggers the same download.
+
+Live Tier 1/2/3 content in the current `MEMORY.md` is **not** indexed — a
+plain `read_file` already surfaces it in full, and indexing it too would just
+be redundant. `search_memory` only ever helps with history that's already
+been compressed away.
 
 ## Testing without claude.ai
 
@@ -162,6 +188,12 @@ not localhost, since OAuth's redirect/issuer URLs are the public ones):
 ```bash
 ../.venv/Scripts/python test_oauth_flow.py
 ```
+
+`test_memory_index.py` and `test_server.py` (run via `python -m unittest
+test_server test_memory_index -v`) cover the indexing/search logic, including
+a real round-trip against a live local Chroma store — the first run of these
+downloads the embedding model, subsequent runs are fast (seconds, not
+minutes).
 
 ## Known limitations
 
@@ -196,3 +228,12 @@ anyone else at it:
 - **Single resource owner.** This is built for one person (whoever knows
   `SMRITI_LOGIN_PASSWORD`), not multi-tenant use — every registered OAuth
   client shares the same login and the same data root.
+- **The search index never garbage-collects stale entries.** `write_file`
+  upserts by an id derived from each line's exact text, so an edited or
+  reworded line adds a new vector rather than replacing the old one — the
+  old wording stays searchable forever alongside the new. Harmless for
+  correctness (both will just show up as hits), but the index only ever
+  grows, never shrinks.
+- **First real write after a fresh install downloads ~80MB** (the local
+  embedding model) before it returns. Expected and one-time, but worth
+  knowing if a `write_file` call seems to hang the first time.

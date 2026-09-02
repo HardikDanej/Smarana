@@ -5,6 +5,28 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0] — 2026-09-02
+
+### Added
+
+- **Semantic search over aged-out memory** (`search_memory` tool on `server/`), adapted from [`claude-mem`](https://github.com/thedotmack/claude-mem)'s hybrid semantic/keyword retrieval approach. `write_file` now indexes each project's superseded/deprecated Tier 2 ADRs and Compressed Changelog entries — the detail that's already been compressed away to stay under the 120-line cap — into a local Chroma vector store (`server/data/<project>/vector_index/`). `search_memory(project, query, top_k)` queries it by meaning rather than exact keyword. Live Tier 1/2/3 content is deliberately not indexed; a plain `read_file` already covers it in full. Uses Chroma's default local embedding model (no API key, no per-query cost); the model (~80MB) downloads once from Hugging Face's CDN on first use and runs offline afterward.
+- `SKILL.md` Phase 1 gained a step describing when to call `search_memory` — only as a fallback when the live file doesn't answer something asked, never reflexively every turn.
+
+### Changed
+
+- `server/requirements.txt` gained `chromadb` — a real dependency-weight increase (`onnxruntime` and friends), flagged in `server/README.md`'s Known Limitations.
+- CI's `server-tests` job now also runs `test_memory_index.py` and caches the downloaded embedding model between runs.
+
+## [2.3.0] — 2026-09-01
+
+### Added
+
+- **Verified-completion gates on Tier 1 tasks** (`tier1_active_tasks[].gate`), adapted from the [`unlazy`](https://github.com/Leonxlnx/unlazy) skill's gate-contract pattern. An optional `{check, expect, verified, verified_at, evidence}` object: when a task's outcome is genuinely checkable by a command, a `check`/`expect` pair can be attached, and `status: done` is only reachable once that check has actually been run and `verified: true` recorded — never as a self-report. Enforced structurally, not just by instruction: `schemas/memory-schema.json` uses a Draft-07 `if/then` constraint that rejects any state where a gated task claims `done` without `verified: true`. `evidence` records a short fingerprint (exit code, output length/hash) — raw output is never persisted, mirroring `unlazy`'s own rule. Gates are entirely opt-in; a task with no `gate` behaves exactly as before this feature existed.
+
+### Changed
+
+- `schema_version` remains `2.0.0` — `gate` is optional and additive; existing `MEMORY.md` files validate unchanged.
+
 ## [2.2.0] — 2026-08-08
 
 ### Added

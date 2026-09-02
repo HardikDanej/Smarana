@@ -3,7 +3,9 @@ Smriti remote memory MCP server.
 
 Exposes filesystem-style tools (read_file / write_file / list_files) over
 streamable-HTTP, so a claude.ai Connector can persist MEMORY.md per project
-without the user re-uploading anything.
+without the user re-uploading anything. Also exposes search_memory, a
+semantic-search tool over each project's aged-out history (superseded ADRs,
+Compressed Changelog entries) — see memory_index.py.
 
 Tool names deliberately match what smriti's workflows/mcp-handshake.md
 already expects under the mcp__filesystem__* namespace.
@@ -27,6 +29,8 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, RedirectResponse, Response
+
+import memory_index
 
 load_dotenv()
 
@@ -120,7 +124,17 @@ def write_file(project: str, content: str, filename: str = "MEMORY.md") -> str:
     """Write (overwrite) a memory file for the given project."""
     path = _resolve(project, filename)
     path.write_text(content, encoding="utf-8")
-    return f"wrote {len(content)} chars to {project}/{filename}"
+
+    index_note = ""
+    if filename == "MEMORY.md":
+        try:
+            indexed = memory_index.index_content(path.parent, content)
+            if indexed:
+                index_note = f", indexed {indexed} aged-out line(s) for search_memory"
+        except Exception as exc:  # noqa: BLE001 - indexing must never break the core write
+            index_note = f", search index update failed: {exc}"
+
+    return f"wrote {len(content)} chars to {project}/{filename}{index_note}"
 
 
 @mcp.tool()
@@ -136,6 +150,21 @@ def list_files(project: str) -> list[str]:
 def list_projects() -> list[str]:
     """List every project that currently has stored memory."""
     return sorted(p.name for p in DATA_ROOT.iterdir() if p.is_dir())
+
+
+@mcp.tool()
+def search_memory(project: str, query: str, top_k: int = 5) -> list[str]:
+    """Semantic search over this project's AGED-OUT memory only: superseded/
+    deprecated Tier 2 ADRs and Compressed Changelog entries — the detail
+    that's already been compressed out of the live MEMORY.md to stay under
+    the hard cap. For anything still in the live file, use read_file
+    instead; this only helps find history that read_file can no longer
+    surface in full. Returns an empty list if nothing has been indexed yet
+    (e.g. write_file was never called, or nothing indexable was found)."""
+    project_dir = (DATA_ROOT / project).resolve()
+    if project_dir.parent != DATA_ROOT:
+        raise ValueError(f"invalid project name: {project!r}")
+    return memory_index.search(project_dir, query, top_k=top_k)
 
 
 _LOGIN_FORM = """<!doctype html>

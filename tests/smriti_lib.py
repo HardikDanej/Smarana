@@ -84,6 +84,13 @@ def render_markdown(state: dict) -> str:
             line = f"- [{task['status']}] {task['task']}"
         if task.get("source"):
             line += f" (source: {task['source']})"
+        gate = task.get("gate")
+        if gate:
+            if task["status"] == "done":
+                # Schema guarantees verified=true here; nothing else worth showing inline.
+                line += " (gate verified)"
+            else:
+                line += f" (gate pending: {gate['check']})"
         lines.append(line)
     lines.append("")
 

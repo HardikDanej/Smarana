@@ -24,6 +24,10 @@ State is sorted into three tiers, by volatility:
 
 The result persists to `MEMORY.md`, written either through an MCP filesystem/memory server if one is connected, or as a Markdown artifact you paste into the Project's Knowledge if not. The file is capped at 120 lines / ~800 tokens; anything that ages out collapses into a two-line changelog entry instead of disappearing.
 
+Tier 1 tasks can optionally carry a **verified-completion gate** — a `check`/`expect` command pair adapted from the [`unlazy`](https://github.com/Leonxlnx/unlazy) skill's gate-contract pattern. A gated task can only reach `status: done` once that check has actually been run and passed; a confident self-report isn't enough, and the schema itself rejects a `done` task whose gate wasn't verified. Most tasks won't have one — it's opt-in for outcomes a command can genuinely decide.
+
+When connected via `server/`, Smṛti also gets **semantic search over its own aged-out history** — an idea adapted from [`claude-mem`](https://github.com/thedotmack/claude-mem)'s hybrid retrieval approach. Superseded ADRs and Compressed Changelog entries (the detail that's already been compressed away to stay under the cap) are indexed into a local, free vector store; `search_memory` finds the right one by meaning instead of requiring the exact original wording. Live tiers stay a plain file read — this only helps with what's already been summarized down to a couple of terse lines.
+
 ## Repository structure
 
 ```
@@ -42,8 +46,11 @@ smriti/
 ├── server/
 │   ├── server.py                  # Remote memory MCP server (streamable HTTP)
 │   ├── oauth_provider.py          # Minimal OAuth 2.1 authorization server for the Connector flow
+│   ├── memory_index.py            # Semantic search over aged-out memory (local Chroma vector store)
 │   ├── test_client.py             # Manual smoke test: read/write/list against a running server
 │   ├── test_oauth_flow.py         # Manual smoke test: full OAuth flow against a live tunnel
+│   ├── test_server.py             # Automated: tool logic, DATA_ROOT regression, search integration
+│   ├── test_memory_index.py       # Automated: extraction logic + a real Chroma round-trip
 │   └── README.md                  # Setup: run, tunnel, connect as a claude.ai Connector
 └── tests/
     ├── smriti_lib.py              # Reference implementation of the deterministic scaffolding
@@ -81,7 +88,7 @@ python -m unittest discover -s tests -v
 
 ## Status
 
-Schema validated against Draft-07 JSON Schema. Pipeline logic reviewed for internal consistency across all five Skill files. The deterministic parts of the pipeline (schema conformance, hard-cap enforcement, aged-history collapse, usage-based retention, idempotency) are covered by an automated test suite in [`tests/`](tests/), 22/22 passing. Phase 2 (Tier Resolution) is a runtime judgment call, not a pure function, and is out of scope for automated testing; see [`tests/README.md`](tests/README.md). The remote memory server's OAuth flow (`server/`) has its own end-to-end smoke test, `server/test_oauth_flow.py`, run manually against a live tunnel rather than in CI. Version `2.2.0`.
+Schema validated against Draft-07 JSON Schema. Pipeline logic reviewed for internal consistency across all five Skill files. The deterministic parts of the pipeline (schema conformance, hard-cap enforcement, aged-history collapse, usage-based retention, verified-completion gate enforcement, idempotency) are covered by an automated test suite in [`tests/`](tests/), 29/29 passing. Phase 2 (Tier Resolution) is a runtime judgment call, not a pure function, and is out of scope for automated testing; see [`tests/README.md`](tests/README.md) — this includes the act of actually running a gate's `check` command, though the schema-level guarantee that a gated task can't reach `done` without `verified: true` is itself fully tested. The remote memory server's OAuth flow (`server/`) has its own end-to-end smoke test, `server/test_oauth_flow.py`, run manually against a live tunnel rather than in CI. The server's indexing/search logic (`server/memory_index.py`) has its own automated suite in CI, including a real round-trip against a live local vector store, not a mock. Version `2.4.0`.
 
 ## Contributing
 

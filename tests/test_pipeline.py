@@ -364,6 +364,71 @@ class TestProvenanceAndSupersedes(unittest.TestCase):
         self.assertEqual(len(result["compressed_changelog"]), 1)
 
 
+class TestVerifiedCompletionGates(unittest.TestCase):
+    """New in 2.3.0: optional gate-contract completion checks on Tier 1 tasks,
+    adapted from the unlazy skill. The critical property is schema-enforced,
+    not merely instructed: a `done` task with an attached gate MUST have
+    verified: true, or the state fails validation outright."""
+
+    def _gated_task(self, status, verified, **overrides):
+        task = {
+            "task": "Ship the refresh-token endpoint",
+            "status": status,
+            "gate": {
+                "check": "python -m unittest server.test_server",
+                "expect": "OK",
+                "verified": verified,
+            },
+        }
+        task.update(overrides)
+        return task
+
+    def test_done_with_verified_gate_validates(self):
+        state = empty_state("P", "2026-08-03T00:00:00Z")
+        state["tier1_active_tasks"] = [self._gated_task("done", True)]
+        validate(state)  # raises on failure
+
+    def test_done_with_unverified_gate_is_rejected(self):
+        import jsonschema
+
+        state = empty_state("P", "2026-08-03T00:00:00Z")
+        state["tier1_active_tasks"] = [self._gated_task("done", False)]
+        with self.assertRaises(jsonschema.ValidationError):
+            validate(state)
+
+    def test_in_progress_with_unverified_gate_validates(self):
+        """A gate can be attached before it's met — the task just can't be
+        marked done until it actually is."""
+        state = empty_state("P", "2026-08-03T00:00:00Z")
+        state["tier1_active_tasks"] = [self._gated_task("in_progress", False)]
+        validate(state)
+
+    def test_done_with_no_gate_still_validates(self):
+        """Backward compatible: gates are opt-in. A plain self-reported done
+        task, exactly like before this feature existed, stays valid."""
+        state = empty_state("P", "2026-08-03T00:00:00Z")
+        state["tier1_active_tasks"] = [{"task": "Write the README section", "status": "done"}]
+        validate(state)
+
+    def test_render_shows_gate_verified_for_done_task(self):
+        state = empty_state("P", "2026-08-03T00:00:00Z")
+        state["tier1_active_tasks"] = [self._gated_task("done", True)]
+        md = render_markdown(state)
+        self.assertIn("(gate verified)", md)
+
+    def test_render_shows_gate_pending_with_check_for_unverified_task(self):
+        state = empty_state("P", "2026-08-03T00:00:00Z")
+        state["tier1_active_tasks"] = [self._gated_task("in_progress", False)]
+        md = render_markdown(state)
+        self.assertIn("(gate pending: python -m unittest server.test_server)", md)
+
+    def test_render_omits_gate_suffix_when_absent(self):
+        state = empty_state("P", "2026-08-03T00:00:00Z")
+        state["tier1_active_tasks"] = [{"task": "Write the README section", "status": "done"}]
+        md = render_markdown(state)
+        self.assertNotIn("gate", md)
+
+
 class TestIdempotency(unittest.TestCase):
     """Mirrors mcp-handshake.md Step 4."""
 
@@ -398,7 +463,23 @@ class TestExampleFile(unittest.TestCase):
                 {"id": "ADR-003", "date": "2026-07-13", "decision": "Session-cookie auth.", "rationale": "Fastest path to a working login flow for the MVP.", "status": "superseded", "superseded_by": "ADR-006", "source": "2026-07-13 — MVP kickoff", "last_referenced": "2026-07-19"},
             ],
             "tier1_active_tasks": [
-                {"task": "Add rate limiting to the refresh-token endpoint", "status": "in_progress", "source": "2026-07-20 — refresh flow design session"},
+                {
+                    "task": "Add refresh-token rotation middleware",
+                    "status": "done",
+                    "gate": {
+                        "check": "npm test -- rotation-middleware.spec.ts",
+                        "expect": "passing",
+                        "verified": True,
+                        "verified_at": "2026-07-20",
+                        "evidence": "exit=0, 3 passing, 210 bytes",
+                    },
+                },
+                {
+                    "task": "Add rate limiting to the refresh-token endpoint",
+                    "status": "in_progress",
+                    "source": "2026-07-20 — refresh flow design session",
+                    "gate": {"check": "npm test -- rate-limit.spec.ts", "expect": "passing", "verified": False},
+                },
                 {"task": "Write integration tests for the rotation flow", "status": "todo"},
                 {"task": "Deploy to staging", "status": "blocked", "blocked_reason": "waiting on infra team to provision the Redis instance"},
             ],
