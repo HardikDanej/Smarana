@@ -10,7 +10,7 @@ Closes #
 
 ## Invariant check
 
-Smṛti's five invariants are listed in [CONTRIBUTING.md](../blob/main/CONTRIBUTING.md). Confirm this change preserves each, or explain below which one it deliberately changes and why.
+Smaraṇa's five invariants are listed in [CONTRIBUTING.md](../blob/main/CONTRIBUTING.md). Confirm this change preserves each, or explain below which one it deliberately changes and why.
 
 - [ ] `MEMORY.md` still never exceeds the hard cap (120 lines / ~800 tokens)
 - [ ] Tier 3 is still never garbage-collected by volume pressure

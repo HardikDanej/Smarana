@@ -11,8 +11,8 @@ import httpx2
 from dotenv import load_dotenv
 
 load_dotenv()
-PUBLIC_HOST = os.environ["SMRITI_PUBLIC_HOST"]
-PASSWORD = os.environ["SMRITI_LOGIN_PASSWORD"]
+PUBLIC_HOST = os.environ["SMARANA_PUBLIC_HOST"]
+PASSWORD = os.environ["SMARANA_LOGIN_PASSWORD"]
 BASE = f"https://{PUBLIC_HOST}"
 
 

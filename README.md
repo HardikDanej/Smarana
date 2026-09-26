@@ -1,10 +1,10 @@
-# Smṛti
+# Smaraṇa
 
-> **स्मृति** — Sanskrit, *"that which is remembered."* In Indian epistemology, smṛti is the transmitted, retained body of knowledge, as distinct from *śruti*, what is heard fresh in the moment.
+> **स्मरण** — Sanskrit, *"remembrance, recollection, the act of remembering."* Where *śruti* is what is heard fresh in the moment, smaraṇa is the calling back to mind of what was retained.
 
 A tier-aware memory system for Claude Projects. It gives a Claude Project persistent, structured state across sessions instead of an ever-growing, unsorted context dump.
 
-Most attempts at "give Claude memory" fail in one of two ways: everything gets remembered until the file is useless, or nothing gets remembered and every session starts from zero. Smṛti solves that with a 3-tier taxonomy, a deterministic 4-phase pipeline, and a hard cap that forces compression instead of unbounded growth.
+Most attempts at "give Claude memory" fail in one of two ways: everything gets remembered until the file is useless, or nothing gets remembered and every session starts from zero. Smaraṇa solves that with a 3-tier taxonomy, a deterministic 4-phase pipeline, and a hard cap that forces compression instead of unbounded growth.
 
 ## How it works
 
@@ -26,12 +26,12 @@ The result persists to `MEMORY.md`, written either through an MCP filesystem/mem
 
 Tier 1 tasks can optionally carry a **verified-completion gate** — a `check`/`expect` command pair adapted from the [`unlazy`](https://github.com/Leonxlnx/unlazy) skill's gate-contract pattern. A gated task can only reach `status: done` once that check has actually been run and passed; a confident self-report isn't enough, and the schema itself rejects a `done` task whose gate wasn't verified. Most tasks won't have one — it's opt-in for outcomes a command can genuinely decide.
 
-When connected via `server/`, Smṛti also gets **semantic search over its own aged-out history** — an idea adapted from [`claude-mem`](https://github.com/thedotmack/claude-mem)'s hybrid retrieval approach. Superseded ADRs and Compressed Changelog entries (the detail that's already been compressed away to stay under the cap) are indexed into a local, free vector store; `search_memory` finds the right one by meaning instead of requiring the exact original wording. Live tiers stay a plain file read — this only helps with what's already been summarized down to a couple of terse lines.
+When connected via `server/`, Smaraṇa also gets **semantic search over its own aged-out history** — an idea adapted from [`claude-mem`](https://github.com/thedotmack/claude-mem)'s hybrid retrieval approach. Superseded ADRs and Compressed Changelog entries (the detail that's already been compressed away to stay under the cap) are indexed into a local, free vector store; `search_memory` finds the right one by meaning instead of requiring the exact original wording. Live tiers stay a plain file read — this only helps with what's already been summarized down to a couple of terse lines.
 
 ## Repository structure
 
 ```
-smriti/
+smarana/
 ├── SKILL.md                       # Orchestrator: the pipeline, the tier rules, the file map
 ├── schemas/
 │   └── memory-schema.json         # Structural contract every MEMORY.md write validates against
@@ -53,7 +53,7 @@ smriti/
 │   ├── test_memory_index.py       # Automated: extraction logic + a real Chroma round-trip
 │   └── README.md                  # Setup: run, tunnel, connect as a claude.ai Connector
 └── tests/
-    ├── smriti_lib.py              # Reference implementation of the deterministic scaffolding
+    ├── smarana_lib.py              # Reference implementation of the deterministic scaffolding
     ├── test_pipeline.py           # Test harness: schema, GC, hard cap, idempotency
     └── README.md                  # What's tested, what isn't, and why
 ```

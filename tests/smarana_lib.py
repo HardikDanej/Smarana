@@ -1,5 +1,5 @@
 """
-Reference implementation of the deterministic parts of the Smṛti pipeline:
+Reference implementation of the deterministic parts of the Smaraṇa pipeline:
 schema validation, rendering, consolidation/GC, and the idempotency check.
 
 This does NOT implement Phase 2 (Tier Resolution) as an LLM would: deciding
