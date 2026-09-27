@@ -1,5 +1,5 @@
 """
-Smriti remote memory MCP server.
+Smarana remote memory MCP server.
 
 Exposes filesystem-style tools (read_file / write_file / list_files) over
 streamable-HTTP, so a claude.ai Connector can persist MEMORY.md per project
@@ -7,14 +7,14 @@ without the user re-uploading anything. Also exposes search_memory, a
 semantic-search tool over each project's aged-out history (superseded ADRs,
 Compressed Changelog entries) — see memory_index.py.
 
-Tool names deliberately match what smriti's workflows/mcp-handshake.md
+Tool names deliberately match what smarana's workflows/mcp-handshake.md
 already expects under the mcp__filesystem__* namespace.
 
 Every project gets its own subfolder under DATA_ROOT, keyed by a
 `project` argument the client passes on each call. Paths are confined to
 DATA_ROOT — no traversal outside it is possible.
 
-Auth: when SMRITI_PUBLIC_HOST and SMRITI_LOGIN_PASSWORD are both set, this
+Auth: when SMARANA_PUBLIC_HOST and SMARANA_LOGIN_PASSWORD are both set, this
 runs a real (minimal) OAuth 2.1 authorization server — see
 oauth_provider.py — so claude.ai's Connector flow ends at an actual login,
 not just possession of the tunnel URL. Without both set, it falls back to
@@ -36,14 +36,14 @@ load_dotenv()
 
 
 def _resolve_data_root() -> Path:
-    """SMRITI_DATA_ROOT falls back to server/data — including when the env
+    """SMARANA_DATA_ROOT falls back to server/data — including when the env
     var is present but set to an empty string, which `os.environ.get(key,
     default)` alone does NOT catch (that only applies the default when the
     key is absent). A prior version of this function had exactly that bug:
     an empty .env value silently resolved DATA_ROOT to server/ itself
     instead of server/data/. See TestDataRootEnvHandling in test_server.py.
     """
-    raw = os.environ.get("SMRITI_DATA_ROOT")
+    raw = os.environ.get("SMARANA_DATA_ROOT")
     return Path(raw or (Path(__file__).parent / "data")).resolve()
 
 
@@ -53,9 +53,9 @@ DATA_ROOT.mkdir(parents=True, exist_ok=True)
 # The SDK's DNS-rebinding protection only allow-lists localhost Host headers
 # by default, which rejects every request arriving through a tunnel (the
 # Host header is the tunnel's public hostname, not "localhost"). Extend the
-# allow-list with SMRITI_PUBLIC_HOST — set it to your current tunnel domain,
+# allow-list with SMARANA_PUBLIC_HOST — set it to your current tunnel domain,
 # no scheme, e.g. "random-words-here.trycloudflare.com".
-_public_host = os.environ.get("SMRITI_PUBLIC_HOST", "").strip()
+_public_host = os.environ.get("SMARANA_PUBLIC_HOST", "").strip()
 _allowed_hosts = ["127.0.0.1:*", "localhost:*", "[::1]:*"]
 _allowed_origins = ["http://127.0.0.1:*", "http://localhost:*", "http://[::1]:*"]
 if _public_host:
@@ -67,7 +67,7 @@ TRANSPORT_SECURITY = TransportSecuritySettings(
     allowed_origins=_allowed_origins,
 )
 
-_login_password = os.environ.get("SMRITI_LOGIN_PASSWORD", "").strip()
+_login_password = os.environ.get("SMARANA_LOGIN_PASSWORD", "").strip()
 oauth_provider = None
 _auth_settings = None
 
@@ -75,10 +75,10 @@ if _public_host and _login_password:
     from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions, RevocationOptions
     from pydantic import AnyHttpUrl
 
-    from oauth_provider import SmritiOAuthProvider
+    from oauth_provider import SmaranaOAuthProvider
 
     _issuer_url = AnyHttpUrl(f"https://{_public_host}")
-    oauth_provider = SmritiOAuthProvider(
+    oauth_provider = SmaranaOAuthProvider(
         store_path=Path(__file__).parent / "oauth_store.json",
         login_password=_login_password,
         public_host=_public_host,
@@ -92,7 +92,7 @@ if _public_host and _login_password:
         revocation_options=RevocationOptions(enabled=True),
     )
 
-mcp = MCPServer("smriti-memory", auth_server_provider=oauth_provider, auth=_auth_settings)
+mcp = MCPServer("smarana-memory", auth_server_provider=oauth_provider, auth=_auth_settings)
 
 
 def _resolve(project: str, filename: str) -> Path:
@@ -168,9 +168,9 @@ def search_memory(project: str, query: str, top_k: int = 5) -> list[str]:
 
 
 _LOGIN_FORM = """<!doctype html>
-<html><head><title>Smriti Memory Server</title></head>
+<html><head><title>Smarana Memory Server</title></head>
 <body style="font-family:sans-serif;max-width:360px;margin:80px auto">
-<h2>Smriti Memory Server</h2>
+<h2>Smarana Memory Server</h2>
 <p>Sign in to authorize this connector.</p>
 <form method="post">
 <input type="hidden" name="login_token" value="{login_token}">
@@ -218,8 +218,8 @@ def build_app():
 if __name__ == "__main__":
     import uvicorn
 
-    host = os.environ.get("SMRITI_HOST", "127.0.0.1")
-    port = int(os.environ.get("SMRITI_PORT", "8787"))
+    host = os.environ.get("SMARANA_HOST", "127.0.0.1")
+    port = int(os.environ.get("SMARANA_PORT", "8787"))
     if oauth_provider is None:
-        print("SMRITI_PUBLIC_HOST/SMRITI_LOGIN_PASSWORD not both set — running with NO AUTH.")
+        print("SMARANA_PUBLIC_HOST/SMARANA_LOGIN_PASSWORD not both set — running with NO AUTH.")
     uvicorn.run(build_app(), host=host, port=port)

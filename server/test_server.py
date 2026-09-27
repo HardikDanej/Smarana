@@ -1,7 +1,7 @@
 """
 Automated tests for server.py's tool logic: path-traversal guards on
 _resolve, read_file/write_file/list_files/list_projects round-tripping, and
-a regression test for the empty-string SMRITI_DATA_ROOT bug we hit and
+a regression test for the empty-string SMARANA_DATA_ROOT bug we hit and
 fixed by hand while testing manually.
 
 Deliberately does NOT test the OAuth flow — that has its own end-to-end
@@ -21,14 +21,14 @@ import unittest
 from pathlib import Path
 
 # Module-level env setup MUST happen before `import server`, since server.py
-# reads these at import time. Explicitly blanking SMRITI_PUBLIC_HOST/
-# SMRITI_LOGIN_PASSWORD keeps this hermetic even if a real server/.env
+# reads these at import time. Explicitly blanking SMARANA_PUBLIC_HOST/
+# SMARANA_LOGIN_PASSWORD keeps this hermetic even if a real server/.env
 # exists on the machine running the tests (load_dotenv does not override
 # already-set os.environ values).
-_TMP_ROOT = Path(tempfile.mkdtemp(prefix="smriti-test-data-"))
-os.environ["SMRITI_DATA_ROOT"] = str(_TMP_ROOT)
-os.environ["SMRITI_PUBLIC_HOST"] = ""
-os.environ["SMRITI_LOGIN_PASSWORD"] = ""
+_TMP_ROOT = Path(tempfile.mkdtemp(prefix="smarana-test-data-"))
+os.environ["SMARANA_DATA_ROOT"] = str(_TMP_ROOT)
+os.environ["SMARANA_PUBLIC_HOST"] = ""
+os.environ["SMARANA_LOGIN_PASSWORD"] = ""
 
 import server  # noqa: E402  (import must follow the env setup above)
 
@@ -115,29 +115,29 @@ class TestDataRootEnvHandling(unittest.TestCase):
     resolving DATA_ROOT to server/ itself instead of server/data/."""
 
     def setUp(self):
-        self._original = os.environ.get("SMRITI_DATA_ROOT")
+        self._original = os.environ.get("SMARANA_DATA_ROOT")
 
     def tearDown(self):
         if self._original is None:
-            os.environ.pop("SMRITI_DATA_ROOT", None)
+            os.environ.pop("SMARANA_DATA_ROOT", None)
         else:
-            os.environ["SMRITI_DATA_ROOT"] = self._original
+            os.environ["SMARANA_DATA_ROOT"] = self._original
 
     def test_empty_string_env_value_falls_back_to_default(self):
-        os.environ["SMRITI_DATA_ROOT"] = ""
+        os.environ["SMARANA_DATA_ROOT"] = ""
         result = server._resolve_data_root()
         expected_default = (Path(server.__file__).parent / "data").resolve()
         self.assertEqual(result, expected_default)
 
     def test_absent_env_value_falls_back_to_default(self):
-        os.environ.pop("SMRITI_DATA_ROOT", None)
+        os.environ.pop("SMARANA_DATA_ROOT", None)
         result = server._resolve_data_root()
         expected_default = (Path(server.__file__).parent / "data").resolve()
         self.assertEqual(result, expected_default)
 
     def test_real_path_env_value_is_honored(self):
         real_path = str(_TMP_ROOT)
-        os.environ["SMRITI_DATA_ROOT"] = real_path
+        os.environ["SMARANA_DATA_ROOT"] = real_path
         result = server._resolve_data_root()
         self.assertEqual(result, Path(real_path).resolve())
 

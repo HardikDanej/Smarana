@@ -5,6 +5,30 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Sākṣī v0, a zero-token watcher** (`sakshi/`): Claude Code hooks that watch the orchestrator, agents and sub-agents without any model calls. A sub-agent gets a ~300-token cold-start brief from `MEMORY.md` at `SubagentStart` (Tier 3 rules, the active ADRs that match its dispatch prompt by keyword, and the parent's open tasks). An agent about to re-read an unchanged file, or to repeat an identical call a third time, gets a short note. Every tool call goes to `.sakshi/events.jsonl`, and every intervention goes to `.sakshi/ledger.jsonl`. `SAKSHI_MODE=observe` logs only, for A/B baselines. `block` denies unchanged re-reads. `sakshi/report.py` summarises a session, including real API usage read from its transcripts.
+- `tests/test_sakshi.py` (39 tests, stdlib only). The hook contract was also verified live against a headless Claude Code session; see `sakshi/README.md`.
+
+## [2.5.0] — 2026-09-26
+
+### Added
+
+- **Optional Laya-based cross-check for Phase 2 (Tier Resolution)** (`scripts/tier_screen.py`, invoked via the new `workflows/tier-screen.md`), adapted from the same pattern used elsewhere for a "local calibrated classifier as a second signal on an LLM judgment call." Laya (https://huggingface.co/convaiinnovations/laya) is a small, non-autoregressive classifier that answers typed questions in one fast local forward pass with calibrated probabilities instead of a softmax — no text generation, so no hallucination risk. `tier_screen.py` asks it three questions in one call: which of the three tiers a candidate fact belongs in (a `choice` question, mirroring Phase 2's own three-way resolution procedure), whether it contradicts an existing Tier 2 entry, and whether it duplicates something already recorded. It never decides anything by itself — Phase 2's own resolution procedure remains authoritative, and this step is only called when a tier call is genuinely ambiguous, never reflexively on every write. `SKILL.md` Phase 2 gained a step describing when to call it and how to weigh disagreement (a prompt to double-check, never an automatic override, since Laya has read only the flattened fact text it's given, not the conversation).
+- `scripts/requirements.txt` and `scripts/README.md` — the same "real, optional dependency weight" disclosure pattern used for `server/`'s `chromadb` addition. The script degrades to a clean `{"error": "..."}` response with every field null if `laya` was never installed, and Phase 2 simply proceeds unassisted in that case.
+- `tests/test_tier_screen.py` (12 tests) covering the script's input-parsing and error-handling contract via a substituted fake `laya` module — offline, in milliseconds, no model download. Consistent with this repo's existing rule that only the deterministic parts of the pipeline are covered by the automated suite; real inference was verified manually against this README's own worked Tier 2 example (Redis → Postgres session storage) and correctly scored `tier2_architecture_decision` at 0.66 probability.
+
+### Changed
+
+- `schema_version` remains `2.0.0` — this feature writes nothing new to `MEMORY.md`'s schema, it only informs the Phase 2 judgment call before a write happens.
+
+### Known limitations
+
+- Laya's own model card and its published benchmark cite ~33ms/question on GPU. On CPU-only hardware (no CUDA), real measured latency for this script's three-question batch was 3–10 seconds, well above even the model card's own ~200ms/question CPU figure — disclosed honestly in `scripts/README.md` rather than repeating the marketing number.
+- The `convaiinnovations/laya` checkpoint warns on load that some of its internal option buckets ship miscalibrated temperatures. `workflows/tier-screen.md` treats its output as a cross-check to weigh, not ground truth, for exactly this reason.
+
 ## [2.4.0] — 2026-09-02
 
 ### Added
@@ -31,8 +55,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Remote memory MCP server** (`server/`) — gives Smṛti a real `MCP` persistence mode instead of only the artifact (copy-paste) fallback. Exposes `read_file`/`write_file`/`list_files`/`list_projects` over streamable HTTP, keyed per `project` so one server instance holds isolated memory for many Claude Projects.
-- **Real OAuth 2.1 on the memory server** (`server/oauth_provider.py`) — dynamic client registration (RFC 7591), PKCE (RFC 7636), and a password-gated login page, so claude.ai's Connector flow ends at an actual credential check instead of the tunnel URL being the only protection. Falls back to no auth when `SMRITI_PUBLIC_HOST`/`SMRITI_LOGIN_PASSWORD` aren't set.
+- **Remote memory MCP server** (`server/`) — gives Smaraṇa a real `MCP` persistence mode instead of only the artifact (copy-paste) fallback. Exposes `read_file`/`write_file`/`list_files`/`list_projects` over streamable HTTP, keyed per `project` so one server instance holds isolated memory for many Claude Projects.
+- **Real OAuth 2.1 on the memory server** (`server/oauth_provider.py`) — dynamic client registration (RFC 7591), PKCE (RFC 7636), and a password-gated login page, so claude.ai's Connector flow ends at an actual credential check instead of the tunnel URL being the only protection. Falls back to no auth when `SMARANA_PUBLIC_HOST`/`SMARANA_LOGIN_PASSWORD` aren't set.
 - **Provenance tags** — `tier2_architecture_log[].source` and `tier1_active_tasks[].source`: a short free-text note on which conversation/session produced the entry.
 - **Usage-based retention for Tier 2** — `tier2_architecture_log[].last_referenced`. A superseded ADR that keeps getting cited again in later sessions resets its own collapse eligibility instead of aging out on a flat 7-day-from-creation timer.
 - **Structured supersedes link** — `tier2_architecture_log[].superseded_by`, the back-reference counterpart to the existing `supersedes` field. Both fields are now set on both sides of a supersession in the same write, making "what replaced X" and "what did Y replace" both directly queryable instead of requiring a parse of `rationale` prose.
@@ -45,10 +69,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Renamed the project to Smṛti** (Sanskrit, "that which is remembered"). Previously "Project Memory Engine".
-  - `SKILL.md` frontmatter `name` is now `smriti`.
-  - `tests/pme_lib.py` is now `tests/smriti_lib.py`.
-  - Schema `$id` is now `https://internal/smriti/memory-schema.json`.
+- **Renamed the project to Smaraṇa** (Sanskrit, "that which is remembered"). Previously "Project Memory Engine".
+  - `SKILL.md` frontmatter `name` is now `smarana`.
+  - `tests/pme_lib.py` is now `tests/smarana_lib.py`.
+  - Schema `$id` is now `https://internal/smarana/memory-schema.json`.
   - The on-disk memory file is still `MEMORY.md`, and the schema shape is unchanged — existing memory files remain valid without migration.
 
 ### Fixed

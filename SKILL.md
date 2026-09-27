@@ -1,5 +1,5 @@
 ---
-name: smriti
+name: smarana
 description: Tier-aware memory orchestrator. Sorts project state into 3 tiers (tasks, decisions, rules), prunes stale context, persists to MEMORY.md. Use at session start or when saving/updating progress.
 triggers:
   - "start session"
@@ -9,10 +9,10 @@ triggers:
   - "project context"
   - "load memory"
   - "checkpoint"
-version: 2.4.0
+version: 2.5.0
 ---
 
-# Smṛti — Tier-Aware Project Memory
+# Smaraṇa — Tier-Aware Project Memory
 
 You are the project's dedicated **Memory Architect**. Your job is not to remember everything — it is to remember the *right* things, at the *right density*, in the *right place*, every time. Treat every memory operation as a deterministic state-machine run, never an improvised summary.
 
@@ -65,7 +65,8 @@ Classify every new fact surfaced this session into exactly one tier. When a fact
 3. Ask: *Is this a structural or technical choice future work must respect?* → Tier 2, formatted as an ADR (`id`, `date`, `decision`, `rationale`, `status`).
 4. Ask: *Is this a standing constraint the user stated independent of any single task ("always use X", "never do Y")?* → Tier 3.
 5. Write the resolved fact into the in-memory draft of `MEMORY.md` under its tier heading. Stamp `source` on every new Tier 1 or Tier 2 entry — a short free-text description of what in this conversation produced it, e.g. `"2026-08-08 — tunnel auth discussion"`. Claude has no reliable access to a structured conversation/session ID, so this is deliberately a human-readable label, not a machine key.
-6. A new Tier 2 entry that contradicts an existing `active` ADR marks the old one `superseded` — it is not deleted here; that happens once it ages out in `consolidate-memory.md`. Set the link on **both** entries in the same write: the new ADR's `supersedes` points at the old ADR's `id`, and the old ADR's `superseded_by` points at the new ADR's `id`. This is a structured, queryable back-reference — not just prose in `rationale` — so "what superseded ADR-003" and "what did ADR-006 replace" are both answerable by reading the field, not by parsing text.
+6. **Optional cross-check, when genuinely uncertain.** If step 2–4's tier call is genuinely ambiguous, or step 7 below is about to mark an existing ADR `superseded` on a contradiction you aren't fully sure about, run `workflows/tier-screen.md` — a local Laya-based classifier giving a second, calibrated, independent read on the same tier/contradiction/duplicate questions. Skip it for anything already unambiguous, and skip it entirely if its dependencies were never installed (see `scripts/README.md`); this step only sharpens the resolution procedure, it is never required to complete it. A disagreement between its output and your own reading is a reason to look again, not an automatic override — it has read only the flattened fact text you gave it, not this conversation.
+7. A new Tier 2 entry that contradicts an existing `active` ADR marks the old one `superseded` — it is not deleted here; that happens once it ages out in `consolidate-memory.md`. Set the link on **both** entries in the same write: the new ADR's `supersedes` points at the old ADR's `id`, and the old ADR's `superseded_by` points at the new ADR's `id`. This is a structured, queryable back-reference — not just prose in `rationale` — so "what superseded ADR-003" and "what did ADR-006 replace" are both answerable by reading the field, not by parsing text.
 
 ### Phase 2b — Verified Completion (Gates)
 
@@ -168,4 +169,5 @@ Field-to-schema mapping: `Tier 3` bullets → `tier3_domain_rules[]`; `Tier 2` b
 | `workflows/initialize-memory.md` | Bootstrap protocol when no `MEMORY.md` exists | Phase 1 finds nothing |
 | `workflows/consolidate-memory.md` | Dedup, collapse, hard-cap enforcement | Phase 3 threshold met |
 | `workflows/mcp-handshake.md` | MCP-first, artifact-fallback write logic | Phase 4, every run |
+| `workflows/tier-screen.md` | Optional local Laya-based calibrated cross-check on tier placement, contradiction, and duplicate detection | Phase 2, only when genuinely uncertain and `scripts/`'s dependencies are installed |
 | `schemas/memory-schema.json` | Structural contract for all memory objects | Phase 1 parse, Phase 4 pre-write validation |

@@ -10,7 +10,7 @@ pip install -r requirements-dev.txt
 python -m unittest discover -s tests -v
 ```
 
-`smriti_lib.py` is a reference implementation of the deterministic scaffolding described in `SKILL.md` and `workflows/*.md`: schema validation, Markdown rendering, consolidation/GC, and the idempotency check.
+`smarana_lib.py` is a reference implementation of the deterministic scaffolding described in `SKILL.md` and `workflows/*.md`: schema validation, Markdown rendering, consolidation/GC, and the idempotency check.
 
 ## What's covered
 

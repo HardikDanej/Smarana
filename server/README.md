@@ -1,6 +1,6 @@
-# Smṛti Memory Server
+# Smaraṇa Memory Server
 
-A small remote MCP server that gives Smṛti a real `MCP` persistence mode
+A small remote MCP server that gives Smaraṇa a real `MCP` persistence mode
 instead of only the artifact (copy-paste) fallback. It exposes five tools —
 `read_file`, `write_file`, `list_files`, `list_projects`, `search_memory` —
 over streamable HTTP, matching the `mcp__filesystem__*` calls that
@@ -34,7 +34,7 @@ python -m venv ../.venv        # if you don't already have the project's .venv
 # ../.venv/bin/pip install -r requirements.txt     # macOS/Linux
 
 cp .env.example .env
-python -c "import secrets; print(secrets.token_urlsafe(24))"   # paste into SMRITI_LOGIN_PASSWORD
+python -c "import secrets; print(secrets.token_urlsafe(24))"   # paste into SMARANA_LOGIN_PASSWORD
 ```
 
 **Auth: real OAuth, with a fallback.** claude.ai's Custom Connector dialog
@@ -47,14 +47,14 @@ registration (RFC 7591), PKCE (RFC 7636), and a password-gated `/login`
 page — so the claude.ai Connector flow ends at an actual credential check,
 not just possession of the tunnel URL.
 
-- Set **both** `SMRITI_PUBLIC_HOST` and `SMRITI_LOGIN_PASSWORD` in `.env`
+- Set **both** `SMARANA_PUBLIC_HOST` and `SMARANA_LOGIN_PASSWORD` in `.env`
   to turn OAuth on. The server prints a warning and runs with **no auth at
   all** if either is missing — useful for quick local testing, not
   recommended once you're actually using this day to day.
 - Registered clients and refresh tokens persist to `server/oauth_store.json`
   (gitignored) so a server restart doesn't force reconnecting the claude.ai
   Connector — as long as the tunnel URL hasn't also changed underneath it.
-- If you think the password leaked, change `SMRITI_LOGIN_PASSWORD` and
+- If you think the password leaked, change `SMARANA_LOGIN_PASSWORD` and
   restart; existing tokens issued under the old password keep working
   until they expire (access tokens: 1 hour) since there's no per-password
   token revocation — delete `server/oauth_store.json` for an immediate
@@ -66,8 +66,8 @@ not just possession of the tunnel URL.
 ../.venv/Scripts/python server.py
 ```
 
-It binds to `127.0.0.1:8787` by default (override with `SMRITI_HOST` /
-`SMRITI_PORT` in `.env`).
+It binds to `127.0.0.1:8787` by default (override with `SMARANA_HOST` /
+`SMARANA_PORT` in `.env`).
 
 ## 3. Expose it with a tunnel
 
@@ -85,26 +85,26 @@ account + a domain) instead of the quick-tunnel form.
 
 ngrok (`ngrok http 8787`) works the same way if you'd rather use that.
 
-**Important — set `SMRITI_PUBLIC_HOST` after every tunnel (re)start.** The
+**Important — set `SMARANA_PUBLIC_HOST` after every tunnel (re)start.** The
 SDK's DNS-rebinding protection rejects any request whose `Host` header isn't
 on an allow-list, and by default that list only contains `localhost`. A
 request arriving through the tunnel has the tunnel's hostname as its `Host`
 header, so without this it gets rejected with `421 Misdirected Request` —
 which is exactly the error claude.ai's connector dialog surfaces as
 "Couldn't connect to the server." Copy the hostname (no `https://`, no
-`/mcp`) from the tunnel's printed URL into `SMRITI_PUBLIC_HOST` in `.env`,
+`/mcp`) from the tunnel's printed URL into `SMARANA_PUBLIC_HOST` in `.env`,
 then restart `server.py`:
 
 ```
-SMRITI_PUBLIC_HOST=random-words-here.trycloudflare.com
+SMARANA_PUBLIC_HOST=random-words-here.trycloudflare.com
 ```
 
 If you're using the free quick-tunnel form, this means restarting the
 server every time you restart the tunnel, since the hostname changes each
-time — and since OAuth's `issuer_url` is derived from `SMRITI_PUBLIC_HOST`,
+time — and since OAuth's `issuer_url` is derived from `SMARANA_PUBLIC_HOST`,
 you'll also need to reconnect the claude.ai Connector at the new URL
 (dynamic client registration runs again automatically; you'll just need to
-log in again with `SMRITI_LOGIN_PASSWORD` when prompted). A named tunnel
+log in again with `SMARANA_LOGIN_PASSWORD` when prompted). A named tunnel
 avoids all of this churn.
 
 ## 4. Add it as a Connector in claude.ai
@@ -115,7 +115,7 @@ avoids all of this churn.
    fields **empty** — the server registers a client automatically via RFC
    7591 the first time you connect; you don't fill these in by hand.
 4. Click Add, then Connect. claude.ai redirects to this server's `/login`
-   page — enter `SMRITI_LOGIN_PASSWORD` there. On success it redirects back
+   page — enter `SMARANA_LOGIN_PASSWORD` there. On success it redirects back
    to claude.ai with the connection established.
 5. Enable the connector for the specific Project(s) that should use it.
 
@@ -180,8 +180,8 @@ the results.
 discovery, dynamic client registration, `/authorize` → `/login`, a wrong
 password (must be rejected), the correct password, code exchange, a tool
 call without a token (must be rejected), a tool call with the token (must
-succeed), and refresh-token exchange. Requires `SMRITI_PUBLIC_HOST` and
-`SMRITI_LOGIN_PASSWORD` set and the server reachable at that public host
+succeed), and refresh-token exchange. Requires `SMARANA_PUBLIC_HOST` and
+`SMARANA_LOGIN_PASSWORD` set and the server reachable at that public host
 (i.e. the tunnel needs to be up — this test talks to the real public URL,
 not localhost, since OAuth's redirect/issuer URLs are the public ones):
 
@@ -205,12 +205,12 @@ anyone else at it:
   auto-start on boot, no health check. A machine restart silently kills
   persistence until you notice and restart both.
 - **The free quick-tunnel URL is not stable.** It changes on every
-  `cloudflared` restart, which then requires updating `SMRITI_PUBLIC_HOST`
+  `cloudflared` restart, which then requires updating `SMARANA_PUBLIC_HOST`
   and reconnecting the claude.ai Connector. A named Cloudflare Tunnel (needs
   a domain) avoids this.
 - **`oauth_store.json` never expires or prunes entries on its own.**
   Registered clients and refresh tokens accumulate indefinitely. Rotating
-  `SMRITI_LOGIN_PASSWORD` stops *new* logins, but access tokens already
+  `SMARANA_LOGIN_PASSWORD` stops *new* logins, but access tokens already
   issued keep working until their natural 1-hour expiry, and existing
   refresh tokens keep minting new access tokens indefinitely since refresh
   itself doesn't re-check the password. Delete `server/oauth_store.json`
@@ -226,7 +226,7 @@ anyone else at it:
   client with a valid token from writing arbitrarily large content or
   hammering the server with requests.
 - **Single resource owner.** This is built for one person (whoever knows
-  `SMRITI_LOGIN_PASSWORD`), not multi-tenant use — every registered OAuth
+  `SMARANA_LOGIN_PASSWORD`), not multi-tenant use — every registered OAuth
   client shares the same login and the same data root.
 - **The search index never garbage-collects stale entries.** `write_file`
   upserts by an id derived from each line's exact text, so an edited or

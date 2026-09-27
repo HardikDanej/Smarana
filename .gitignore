@@ -30,3 +30,6 @@ server/.env
 server/data/
 server/*.log
 server/oauth_store.json
+
+# Sakshi watcher data: event log, ledger, per-agent state.
+.sakshi/
