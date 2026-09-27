@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Renamed the project to Smaraṇa** (Sanskrit, "remembrance, recollection, the act of remembering"). Previously "Smṛti".
+  - `SKILL.md` frontmatter `name` is now `smarana`.
+  - `tests/smriti_lib.py` is now `tests/smarana_lib.py`.
+  - Schema `$id` is now `https://internal/smarana/memory-schema.json`.
+  - `server/`'s env vars are now `SMARANA_DATA_ROOT`, `SMARANA_HOST`, `SMARANA_PORT`, `SMARANA_PUBLIC_HOST`, `SMARANA_LOGIN_PASSWORD` (previously `SMRITI_*`).
+  - `server/oauth_provider.py`'s `SmritiOAuthProvider` is now `SmaranaOAuthProvider`; the MCP server name is now `smarana-memory`.
+  - The on-disk memory file is still `MEMORY.md`, and the schema shape is unchanged — existing memory files remain valid without migration.
+  - The GitHub repository itself (`github.com/hardikdanej/smriti`) is unchanged; this rename covers the project's identifiers and prose only.
+
 ## [2.4.0] — 2026-09-02
 
 ### Added

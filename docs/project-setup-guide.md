@@ -7,11 +7,11 @@ Use this every time you create a new Claude Project that should have its own iso
 Go to Project → Settings → Custom Instructions, and paste:
 
 ```
-This project uses the Smṛti Skill for persistent state.
+This project uses the Smaraṇa Skill for persistent state.
 
 - MEMORY.md lives in THIS project's Knowledge/Files — nowhere else.
 - At the start of every conversation in this project, check Knowledge for MEMORY.md and load it before responding to anything substantive.
-- Run the Smṛti pipeline (Ingestion -> Tier Resolution -> Compression -> Persistence Handshake) whenever a task finishes, an architectural decision is made, or I say "save state" / "update memory" / "checkpoint".
+- Run the Smaraṇa pipeline (Ingestion -> Tier Resolution -> Compression -> Persistence Handshake) whenever a task finishes, an architectural decision is made, or I say "save state" / "update memory" / "checkpoint".
 - No MCP filesystem/memory server is connected here, so persistence is artifact-mode: when memory changes, output the full updated MEMORY.md in a single fenced code block and tell me to replace the old copy in this Project's Knowledge. Do not skip this — memory that isn't re-uploaded is lost next session.
 - Never invent tasks, decisions, or rules I haven't actually stated or that aren't visible in the codebase/files I've shared here.
 ```
@@ -48,7 +48,7 @@ Anything Claude should treat as ground truth for this specific project goes in K
 
 By default (step 1's Custom Instructions text) this Project runs in
 artifact mode — you paste `MEMORY.md` back into Knowledge by hand after
-every save. If you've deployed the Smṛti memory server (see
+every save. If you've deployed the Smaraṇa memory server (see
 [`../server/README.md`](../server/README.md)) and added it as a Connector
 in claude.ai, drop the artifact-mode line from step 1's Custom Instructions
 and replace it with:

@@ -1,6 +1,6 @@
 version: 2
 updates:
-  # Smṛti has no runtime dependencies; the only moving parts are the CI
+  # Smaraṇa has no runtime dependencies; the only moving parts are the CI
   # actions themselves and the single test-time pin in requirements-dev.txt.
   - package-ecosystem: github-actions
     directory: "/"

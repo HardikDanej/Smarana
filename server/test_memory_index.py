@@ -71,7 +71,7 @@ class TestIndexAndSearch(unittest.TestCase):
     """Real round-trip against a live local Chroma store — no mocking."""
 
     def setUp(self):
-        self.tmp_dir = Path(tempfile.mkdtemp(prefix="smriti-index-test-"))
+        self.tmp_dir = Path(tempfile.mkdtemp(prefix="smarana-index-test-"))
 
     def tearDown(self):
         shutil.rmtree(self.tmp_dir, ignore_errors=True)

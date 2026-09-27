@@ -14,7 +14,7 @@ Use the `PERSISTENCE_MODE` established during Phase 1. Do not re-probe unless th
 | Available tool namespace | Write call | Read call (Phase 1) |
 |---|---|---|
 | `mcp__filesystem__*` (generic single-root server) | `write_file(path="MEMORY.md", content=<rendered markdown>)` | `read_file(path="MEMORY.md")` |
-| `mcp__filesystem__*` (Smṛti memory server, see `server/README.md`) | `write_file(project=<this Claude Project's name>, content=<rendered markdown>)` | `read_file(project=<this Claude Project's name>)` |
+| `mcp__filesystem__*` (Smaraṇa memory server, see `server/README.md`) | `write_file(project=<this Claude Project's name>, content=<rendered markdown>)` | `read_file(project=<this Claude Project's name>)` |
 | `mcp__memory__*` (knowledge-graph style) | `create_entities` / `add_observations`, mapped tier-by-tier — one entity per Tier 2 ADR, one per Tier 1 task, a single `project_rules` entity holding Tier 3 | `read_graph()` |
 
 When the connected server exposes a `project` parameter (multi-tenant
@@ -24,7 +24,7 @@ shared server. Single-root filesystem servers scoped to one directory per
 connection don't need this — omit `project` if the tool signature doesn't
 accept it.
 
-`server/`'s Smṛti memory server also exposes `search_memory(project, query,
+`server/`'s Smaraṇa memory server also exposes `search_memory(project, query,
 top_k)` — semantic search over aged-out history (superseded ADRs,
 Compressed Changelog entries) that a plain `read_file` can no longer show
 in full. This is a Phase 1 retrieval concern, not a write-path one; see

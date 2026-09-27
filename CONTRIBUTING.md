@@ -1,4 +1,4 @@
-# Contributing to Smṛti
+# Contributing to Smaraṇa
 
 Thanks for taking the time. This document covers how to get set up, what the review bar is, and the few constraints that are non-negotiable.
 
@@ -21,12 +21,12 @@ All 15 tests should pass before you start, and after you finish.
 
 ## What this repository is
 
-Smṛti is primarily a **specification**, not a program. `SKILL.md`, `workflows/*.md`, and `schemas/memory-schema.json` are the product; the Python under `tests/` exists only to prove that the deterministic parts of that specification are internally consistent and actually enforceable.
+Smaraṇa is primarily a **specification**, not a program. `SKILL.md`, `workflows/*.md`, and `schemas/memory-schema.json` are the product; the Python under `tests/` exists only to prove that the deterministic parts of that specification are internally consistent and actually enforceable.
 
 That shapes what a good change looks like:
 
 - **A change to the spec is the real change.** If you alter behaviour in `SKILL.md` or a workflow, the tests must change with it, in the same commit.
-- **`tests/smriti_lib.py` is a reference implementation, not a library.** Nothing should import it outside `tests/`. Keep it readable over clever — it doubles as executable documentation of the spec.
+- **`tests/smarana_lib.py` is a reference implementation, not a library.** Nothing should import it outside `tests/`. Keep it readable over clever — it doubles as executable documentation of the spec.
 - **Phase 2 (Tier Resolution) is deliberately untested.** Classifying a freeform fact into a tier is a runtime judgment call, not a pure function. Don't add tests that stub an LLM to fake it; see [`tests/README.md`](tests/README.md).
 
 ## Invariants that must not regress

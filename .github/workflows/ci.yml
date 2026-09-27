@@ -82,6 +82,61 @@ jobs:
         # that talk to a live server/tunnel and are not meant to run here.
         run: cd server && python -m unittest test_server test_memory_index -v
 
+  core-tests:
+    name: core engine tests (python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    services:
+      # Real Postgres+pgvector, not a mock -- core/tests/test_postgres_adapter.py
+      # and the cross-adapter backup test are integration tests against an
+      # actual database on purpose (see core/docs/POSTGRES_SETUP.md).
+      # Credentials match tests/conftest.py's own defaults, so no extra
+      # env vars are needed here.
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: memory_os
+          POSTGRES_PASSWORD: memory_os_dev
+          POSTGRES_DB: memory_os_dev
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: core/requirements-dev.txt
+
+      - name: Install core/ dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r core/requirements-dev.txt
+
+      - name: Run the core/ engine test suite
+        working-directory: core
+        env:
+          PYTHONPATH: .
+        run: python -m pytest tests -v
+
+      - name: Verify core/memory_os stays vendor-neutral (no LLM/network/vendor imports, never imports core/adapters)
+        working-directory: core
+        run: |
+          python scripts/verify_no_llm_dependency.py
+          python scripts/verify_adapter_isolation.py
+
   validate-schema:
     name: schema is valid JSON
     runs-on: ubuntu-latest

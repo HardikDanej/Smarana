@@ -26,7 +26,7 @@ from pathlib import Path
 # (python -m unittest tests/test_pipeline.py), which is what the README documents.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from smriti_lib import (
+from smarana_lib import (
     approx_token_count,
     consolidate,
     empty_state,
@@ -115,14 +115,14 @@ class TestConsolidateWorkedExample(unittest.TestCase):
 
         # Force the cap check to trip regardless of natural size, isolating
         # the collapse logic itself (over_cap gating is tested separately).
-        import smriti_lib
+        import smarana_lib
 
-        original_over_cap = smriti_lib.over_cap
-        smriti_lib.over_cap = lambda s: True
+        original_over_cap = smarana_lib.over_cap
+        smarana_lib.over_cap = lambda s: True
         try:
             result = consolidate(self.state, today)
         finally:
-            smriti_lib.over_cap = original_over_cap
+            smarana_lib.over_cap = original_over_cap
 
         self.assertEqual(len(result["compressed_changelog"]), 2)
         self.assertEqual(len(result["tier1_active_tasks"]), 0)
@@ -131,14 +131,14 @@ class TestConsolidateWorkedExample(unittest.TestCase):
         validate(result)
 
     def test_result_validates_against_schema(self):
-        import smriti_lib
+        import smarana_lib
 
-        original_over_cap = smriti_lib.over_cap
-        smriti_lib.over_cap = lambda s: True
+        original_over_cap = smarana_lib.over_cap
+        smarana_lib.over_cap = lambda s: True
         try:
             result = consolidate(self.state, "2026-07-26")
         finally:
-            smriti_lib.over_cap = original_over_cap
+            smarana_lib.over_cap = original_over_cap
         validate(result)
 
 
@@ -148,14 +148,14 @@ class TestHardConstraints(unittest.TestCase):
         state["tier1_active_tasks"] = [
             {"task": "Old blocked thing", "status": "blocked", "blocked_reason": "waiting on vendor", "updated": "2020-01-01"}
         ]
-        import smriti_lib
+        import smarana_lib
 
-        original_over_cap = smriti_lib.over_cap
-        smriti_lib.over_cap = lambda s: True
+        original_over_cap = smarana_lib.over_cap
+        smarana_lib.over_cap = lambda s: True
         try:
             result = consolidate(state, "2026-08-03")
         finally:
-            smriti_lib.over_cap = original_over_cap
+            smarana_lib.over_cap = original_over_cap
 
         self.assertEqual(len(result["tier1_active_tasks"]), 1)
         self.assertEqual(result["tier1_active_tasks"][0]["status"], "blocked")
@@ -165,28 +165,28 @@ class TestHardConstraints(unittest.TestCase):
         state["tier1_active_tasks"] = [
             {"task": "Old in-progress thing", "status": "in_progress", "updated": "2020-01-01"}
         ]
-        import smriti_lib
+        import smarana_lib
 
-        original_over_cap = smriti_lib.over_cap
-        smriti_lib.over_cap = lambda s: True
+        original_over_cap = smarana_lib.over_cap
+        smarana_lib.over_cap = lambda s: True
         try:
             result = consolidate(state, "2026-08-03")
         finally:
-            smriti_lib.over_cap = original_over_cap
+            smarana_lib.over_cap = original_over_cap
 
         self.assertEqual(len(result["tier1_active_tasks"]), 1)
 
     def test_tier3_never_pruned_by_volume(self):
         state = empty_state("P", "2026-01-01T00:00:00Z")
         state["tier3_domain_rules"] = [f"Rule number {i}" for i in range(50)]
-        import smriti_lib
+        import smarana_lib
 
-        original_over_cap = smriti_lib.over_cap
-        smriti_lib.over_cap = lambda s: True
+        original_over_cap = smarana_lib.over_cap
+        smarana_lib.over_cap = lambda s: True
         try:
             result = consolidate(state, "2026-08-03")
         finally:
-            smriti_lib.over_cap = original_over_cap
+            smarana_lib.over_cap = original_over_cap
 
         self.assertEqual(len(result["tier3_domain_rules"]), 50)
 
@@ -323,14 +323,14 @@ class TestProvenanceAndSupersedes(unittest.TestCase):
                 "last_referenced": "2026-08-01",  # cited 2 days ago
             }
         ]
-        import smriti_lib
+        import smarana_lib
 
-        original_over_cap = smriti_lib.over_cap
-        smriti_lib.over_cap = lambda s: True
+        original_over_cap = smarana_lib.over_cap
+        smarana_lib.over_cap = lambda s: True
         try:
             result = consolidate(state, "2026-08-03")
         finally:
-            smriti_lib.over_cap = original_over_cap
+            smarana_lib.over_cap = original_over_cap
 
         # Still present — 2 days since last_referenced, not yet past the 7-day window.
         ids = [a["id"] for a in result["tier2_architecture_log"]]
@@ -350,14 +350,14 @@ class TestProvenanceAndSupersedes(unittest.TestCase):
                 "status": "superseded",
             }
         ]
-        import smriti_lib
+        import smarana_lib
 
-        original_over_cap = smriti_lib.over_cap
-        smriti_lib.over_cap = lambda s: True
+        original_over_cap = smarana_lib.over_cap
+        smarana_lib.over_cap = lambda s: True
         try:
             result = consolidate(state, "2026-08-03")
         finally:
-            smriti_lib.over_cap = original_over_cap
+            smarana_lib.over_cap = original_over_cap
 
         ids = [a["id"] for a in result["tier2_architecture_log"]]
         self.assertNotIn("ADR-003", ids)

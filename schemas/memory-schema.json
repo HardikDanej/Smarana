@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://internal/smriti/memory-schema.json",
+  "$id": "https://internal/smarana/memory-schema.json",
   "title": "ProjectMemoryState",
   "description": "Canonical structure for a project's persisted MEMORY.md state. Validated in-memory before every Phase 4 Persistence Handshake write, whether rendered to Markdown or synced to an MCP memory graph.",
   "type": "object",

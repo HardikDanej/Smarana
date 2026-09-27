@@ -1,5 +1,5 @@
 """
-Minimal single-resource-owner OAuth 2.1 authorization server for the Smriti
+Minimal single-resource-owner OAuth 2.1 authorization server for the Smaraṇa
 memory server.
 
 Implements just enough of RFC 7591 (dynamic client registration), RFC 7636
@@ -8,7 +8,7 @@ Connector flow to authenticate against a real login (password-gated) instead
 of the tunnel URL being the only secret. PKCE code_verifier validation is
 done by the SDK's own /token handler, not here.
 
-There is exactly one resource owner: whoever knows SMRITI_LOGIN_PASSWORD.
+There is exactly one resource owner: whoever knows SMARANA_LOGIN_PASSWORD.
 Registered clients and refresh tokens persist to a local JSON file so a
 server restart doesn't force reconnecting the claude.ai Connector, as long
 as the tunnel URL (and therefore the issuer URL) hasn't also changed.
@@ -34,7 +34,7 @@ AUTH_CODE_TTL_SECONDS = 600
 LOGIN_TTL_SECONDS = 600
 
 
-class SmritiOAuthProvider(OAuthAuthorizationServerProvider):
+class SmaranaOAuthProvider(OAuthAuthorizationServerProvider):
     def __init__(self, store_path: Path, login_password: str, public_host: str):
         self._store_path = store_path
         self._login_password = login_password
