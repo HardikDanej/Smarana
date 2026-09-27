@@ -22,11 +22,13 @@ import sys
 import unittest
 from pathlib import Path
 
+# smarana_lib was promoted to server/engine.py (the deterministic pipeline
+# logic now backs write_file's server-side enforcement, not just tests).
 # Allow this file to be run either from inside tests/ or from the repo root
 # (python -m unittest tests/test_pipeline.py), which is what the README documents.
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "server"))
 
-from smarana_lib import (
+from engine import (
     approx_token_count,
     consolidate,
     empty_state,
@@ -115,7 +117,7 @@ class TestConsolidateWorkedExample(unittest.TestCase):
 
         # Force the cap check to trip regardless of natural size, isolating
         # the collapse logic itself (over_cap gating is tested separately).
-        import smarana_lib
+        import engine as smarana_lib
 
         original_over_cap = smarana_lib.over_cap
         smarana_lib.over_cap = lambda s: True
@@ -131,7 +133,7 @@ class TestConsolidateWorkedExample(unittest.TestCase):
         validate(result)
 
     def test_result_validates_against_schema(self):
-        import smarana_lib
+        import engine as smarana_lib
 
         original_over_cap = smarana_lib.over_cap
         smarana_lib.over_cap = lambda s: True
@@ -148,7 +150,7 @@ class TestHardConstraints(unittest.TestCase):
         state["tier1_active_tasks"] = [
             {"task": "Old blocked thing", "status": "blocked", "blocked_reason": "waiting on vendor", "updated": "2020-01-01"}
         ]
-        import smarana_lib
+        import engine as smarana_lib
 
         original_over_cap = smarana_lib.over_cap
         smarana_lib.over_cap = lambda s: True
@@ -165,7 +167,7 @@ class TestHardConstraints(unittest.TestCase):
         state["tier1_active_tasks"] = [
             {"task": "Old in-progress thing", "status": "in_progress", "updated": "2020-01-01"}
         ]
-        import smarana_lib
+        import engine as smarana_lib
 
         original_over_cap = smarana_lib.over_cap
         smarana_lib.over_cap = lambda s: True
@@ -179,7 +181,7 @@ class TestHardConstraints(unittest.TestCase):
     def test_tier3_never_pruned_by_volume(self):
         state = empty_state("P", "2026-01-01T00:00:00Z")
         state["tier3_domain_rules"] = [f"Rule number {i}" for i in range(50)]
-        import smarana_lib
+        import engine as smarana_lib
 
         original_over_cap = smarana_lib.over_cap
         smarana_lib.over_cap = lambda s: True
@@ -323,7 +325,7 @@ class TestProvenanceAndSupersedes(unittest.TestCase):
                 "last_referenced": "2026-08-01",  # cited 2 days ago
             }
         ]
-        import smarana_lib
+        import engine as smarana_lib
 
         original_over_cap = smarana_lib.over_cap
         smarana_lib.over_cap = lambda s: True
@@ -350,7 +352,7 @@ class TestProvenanceAndSupersedes(unittest.TestCase):
                 "status": "superseded",
             }
         ]
-        import smarana_lib
+        import engine as smarana_lib
 
         original_over_cap = smarana_lib.over_cap
         smarana_lib.over_cap = lambda s: True

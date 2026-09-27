@@ -1,4 +1,5 @@
-# Test-time dependencies only. Smṛti itself is a Skill (Markdown + JSON) and
-# has no runtime dependencies — this is purely for the reference
-# implementation and test harness under tests/.
+# Test-time dependencies only. Smaraṇa itself is a Skill (Markdown + JSON)
+# and has no runtime dependencies of its own — this is for the test harness
+# under tests/, which imports server/engine.py (the same module server.py
+# depends on at runtime; see server/requirements.txt for that copy).
 jsonschema>=4.0,<5

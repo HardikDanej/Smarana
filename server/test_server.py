@@ -19,6 +19,7 @@ import shutil
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 # Module-level env setup MUST happen before `import server`, since server.py
 # reads these at import time. Explicitly blanking SMARANA_PUBLIC_HOST/
@@ -140,6 +141,134 @@ class TestDataRootEnvHandling(unittest.TestCase):
         os.environ["SMARANA_DATA_ROOT"] = real_path
         result = server._resolve_data_root()
         self.assertEqual(result, Path(real_path).resolve())
+
+
+def _valid_state(project_name: str, **overrides) -> dict:
+    state = {
+        "schema_version": "2.0.0",
+        "project_name": project_name,
+        "last_updated": "2026-09-27T00:00:00Z",
+        "tier3_domain_rules": [],
+        "tier2_architecture_log": [],
+        "tier1_active_tasks": [{"task": "Ship the REST layer", "status": "in_progress"}],
+        "compressed_changelog": [],
+    }
+    state.update(overrides)
+    return state
+
+
+class TestWriteFileEnforcement(unittest.TestCase):
+    """write_file now enforces memory-schema.json and the hard cap
+    server-side for MEMORY.md, via engine.py — see _write_file_impl. This
+    is the actual behavior change the server/README and root README's
+    'How portable this actually is' section describe: enforcement that
+    holds for every caller, not just a well-behaved Claude session."""
+
+    def test_valid_json_state_is_validated_and_rendered(self):
+        import json as _json
+
+        content = _json.dumps(_valid_state("engine-valid"))
+        result = server.write_file(project="engine-valid", content=content)
+        self.assertIn("wrote", result)
+        rendered = server.read_file(project="engine-valid")
+        self.assertIn("# MEMORY.md — engine-valid", rendered)
+        self.assertIn("Ship the REST layer", rendered)
+
+    def test_json_state_missing_required_field_is_rejected(self):
+        import json as _json
+
+        bad = _valid_state("engine-invalid")
+        del bad["last_updated"]
+        with self.assertRaises(ValueError) as ctx:
+            server.write_file(project="engine-invalid", content=_json.dumps(bad))
+        self.assertIn("does not conform", str(ctx.exception))
+        # nothing was persisted
+        self.assertEqual(server.read_file(project="engine-invalid"), "")
+
+    def test_rejected_write_error_is_concise_not_a_schema_dump(self):
+        """Regression: jsonschema's str(exc) includes the whole schema.
+        The caller-facing message must be the one-line .message instead."""
+        import json as _json
+
+        bad = _valid_state("engine-concise-error")
+        del bad["last_updated"]
+        with self.assertRaises(ValueError) as ctx:
+            server.write_file(project="engine-concise-error", content=_json.dumps(bad))
+        self.assertLess(len(str(ctx.exception)), 200)
+
+    def test_oversized_prerendered_markdown_is_rejected(self):
+        huge = "# MEMORY.md\n" + "\n".join(f"- line {i}" for i in range(200))
+        with self.assertRaises(ValueError) as ctx:
+            server.write_file(project="engine-huge-markdown", content=huge)
+        self.assertIn("hard cap", str(ctx.exception))
+        self.assertEqual(server.read_file(project="engine-huge-markdown"), "")
+
+    def test_oversized_json_state_is_auto_consolidated_not_rejected(self):
+        import json as _json
+
+        done_tasks = [
+            {"task": f"old task {i}", "status": "done", "updated": "2026-01-01"}
+            for i in range(40)
+        ]
+        state = _valid_state("engine-auto-consolidate", tier1_active_tasks=done_tasks)
+        result = server.write_file(project="engine-auto-consolidate", content=_json.dumps(state))
+        self.assertIn("wrote", result)
+        rendered = server.read_file(project="engine-auto-consolidate")
+        self.assertLessEqual(len(rendered.splitlines()), server.engine.HARD_CAP_LINES)
+
+    def test_non_memory_filename_is_stored_unvalidated(self):
+        """Enforcement only applies to MEMORY.md — any other filename keeps
+        the original, pre-existing unvalidated behavior."""
+        result = server.write_file(project="engine-other-file", content="not json, not markdown", filename="notes.md")
+        self.assertIn("wrote", result)
+
+
+class TestClassifyFact(unittest.TestCase):
+    """classify_fact wraps scripts/tier_screen.py's run_screen so it's a
+    first-class, callable-with-no-LLM operation, same degrade contract
+    tier_screen.py already guarantees for Claude's own optional use of it."""
+
+    def test_laya_not_installed_degrades_to_clean_error(self):
+        with mock.patch.dict("sys.modules", {"laya": None}):
+            result = server.classify_fact(
+                project="classify-degrade", candidate_text="Some candidate fact."
+            )
+        self.assertIsNone(result["tier_placement"])
+        self.assertIn("laya not importable", result["error"])
+
+    def test_well_formed_response_shape(self):
+        fake_answers = {
+            "tier_placement": {
+                "choice": "tier2_architecture_decision",
+                "probabilities": {"tier2_architecture_decision": 0.9},
+                "confidence": 0.8,
+            },
+            "contradicts_existing_decision": {"noul": 0.1},
+            "duplicate_or_noop": {"noul": 0.1},
+        }
+
+        class _FakeAgent:
+            def predict(self, state, questions):
+                return {"answers": fake_answers}
+
+        fake_laya = mock.MagicMock()
+        fake_laya.load.return_value = _FakeAgent()
+        with mock.patch.dict("sys.modules", {"laya": fake_laya}):
+            result = server.classify_fact(
+                project="classify-shape",
+                candidate_text="Switched session storage to Postgres.",
+                existing_context="[ADR-001] Session storage: Redis.",
+            )
+        self.assertIsNone(result["error"])
+        self.assertEqual(result["tier_placement"]["choice"], "tier2_architecture_decision")
+
+    def test_project_argument_does_not_affect_result(self):
+        """`project` is reserved for future per-project tuning and unused
+        today — documented behavior, not an oversight."""
+        with mock.patch.dict("sys.modules", {"laya": None}):
+            a = server.classify_fact(project="proj-a", candidate_text="x")
+            b = server.classify_fact(project="proj-b", candidate_text="x")
+        self.assertEqual(a, b)
 
 
 class TestSearchMemoryIntegration(unittest.TestCase):

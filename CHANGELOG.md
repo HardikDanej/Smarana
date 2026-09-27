@@ -9,8 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Server-side schema/hard-cap enforcement, and a plain REST surface, on the memory server** (`server/`): `write_file` now validates a structured-JSON write against `memory-schema.json` and auto-consolidates it via `server/engine.py` (promoted out of `tests/`, where it previously only proved the spec was internally consistent) if it's over the hard cap, rejecting with a real reason instead of silently persisting whatever it's given. A pre-rendered-Markdown write still gets a hard-cap check, just not full schema validation, since `engine.py` has no Markdown parser back to schema-shaped state yet. Every tool (`read_file`, `write_file`, `list_files`, `list_projects`, `search_memory`, and the new `classify_fact`) now also has a plain JSON HTTP route under `/projects/...`, for a caller with no MCP client library and no LLM reasoning over `SKILL.md`'s prose — a CRM, an ERP, a plain script — gated by the same `SMARANA_LOGIN_PASSWORD` already used for OAuth, via `Authorization: Bearer`. See `server/README.md`.
+- **`classify_fact`**: `scripts/tier_screen.py`'s local Laya classifier, previously only reachable as Claude's optional Phase 2 cross-check, exposed as a first-class MCP tool and REST route. Returns a real tier/contradiction/duplicate decision on a raw fact with no LLM in the loop; degrades to `{"error": ...}` if `laya` isn't installed, same contract as before.
+- `server/test_server.py` gained 9 tests covering the new enforcement and `classify_fact` (29 total, up from 20). Also verified manually end to end against a running server with `curl`: a malformed write rejected, an oversized write auto-consolidated, a real Laya classification and a semantic search both returned over plain REST.
 - **Sākṣī v0, a zero-token watcher** (`sakshi/`): Claude Code hooks that watch the orchestrator, agents and sub-agents without any model calls. A sub-agent gets a ~300-token cold-start brief from `MEMORY.md` at `SubagentStart` (Tier 3 rules, the active ADRs that match its dispatch prompt by keyword, and the parent's open tasks). An agent about to re-read an unchanged file, or to repeat an identical call a third time, gets a short note. Every tool call goes to `.sakshi/events.jsonl`, and every intervention goes to `.sakshi/ledger.jsonl`. `SAKSHI_MODE=observe` logs only, for A/B baselines. `block` denies unchanged re-reads. `sakshi/report.py` summarises a session, including real API usage read from its transcripts.
 - `tests/test_sakshi.py` (39 tests, stdlib only). The hook contract was also verified live against a headless Claude Code session; see `sakshi/README.md`.
+
+### Changed
+
+- Project renamed Smriti → Smaraṇa throughout (docs, code, the schema's `$id`, `SKILL.md`'s `name` field, the `SMRITI_*` server env vars now `SMARANA_*`, and the GitHub repo itself: `github.com/HardikDanej/smarana`).
 
 ## [2.5.0] — 2026-09-26
 

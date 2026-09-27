@@ -1,11 +1,21 @@
 """
-Smarana remote memory MCP server.
+Smarana remote memory server. MCP over streamable-HTTP for Claude, plus a
+plain JSON REST surface (see the /projects routes near the bottom of this
+file) for any caller that doesn't speak MCP: a CRM webhook, an ERP script,
+a codebase with no LLM in front of it. Same tools, same enforcement, same
+auth, reached over ordinary HTTP instead.
 
-Exposes filesystem-style tools (read_file / write_file / list_files) over
-streamable-HTTP, so a claude.ai Connector can persist MEMORY.md per project
-without the user re-uploading anything. Also exposes search_memory, a
-semantic-search tool over each project's aged-out history (superseded ADRs,
-Compressed Changelog entries) — see memory_index.py.
+Tools: read_file / write_file / list_files / list_projects, so a claude.ai
+Connector (or any MCP client) can persist MEMORY.md per project without
+the user re-uploading anything. write_file now enforces
+schemas/memory-schema.json and the 120-line/~800-token hard cap
+server-side, via engine.py, on every write, for every caller, not only
+when Claude happened to follow SKILL.md's prose correctly — see
+_write_file_impl. search_memory is semantic search over each project's
+aged-out history (superseded ADRs, Compressed Changelog entries); see
+memory_index.py. classify_fact wraps scripts/tier_screen.py's local Laya
+classifier as a first-class operation: a real tier/contradiction/duplicate
+decision on a raw fact, callable with no LLM in the loop at all.
 
 Tool names deliberately match what smarana's workflows/mcp-handshake.md
 already expects under the mcp__filesystem__* namespace.
@@ -19,18 +29,30 @@ runs a real (minimal) OAuth 2.1 authorization server — see
 oauth_provider.py — so claude.ai's Connector flow ends at an actual login,
 not just possession of the tunnel URL. Without both set, it falls back to
 no auth at all (tunnel URL is the only protection); see server/README.md.
+The REST routes reuse the same SMARANA_LOGIN_PASSWORD via a plain
+`Authorization: Bearer <password>` header — see _rest_auth_error — not a
+second, separate auth scheme.
 """
 
+import datetime as dt
+import json
 import os
+import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
 from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.requests import Request
-from starlette.responses import HTMLResponse, RedirectResponse, Response
+from starlette.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 
+import engine
 import memory_index
+
+# scripts/ holds tier_screen.py (the Laya classifier classify_fact wraps).
+# It's a sibling directory to server/, not a package, same bare-import
+# pattern engine.py and memory_index.py already use for this module.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 load_dotenv()
 
@@ -110,18 +132,72 @@ def _resolve(project: str, filename: str) -> Path:
     return project_dir / filename
 
 
-@mcp.tool()
-def read_file(project: str, filename: str = "MEMORY.md") -> str:
-    """Read a memory file for the given project. Returns '' if it doesn't exist yet."""
+def _read_file_impl(project: str, filename: str = "MEMORY.md") -> str:
     path = _resolve(project, filename)
     if not path.exists():
         return ""
     return path.read_text(encoding="utf-8")
 
 
-@mcp.tool()
-def write_file(project: str, content: str, filename: str = "MEMORY.md") -> str:
-    """Write (overwrite) a memory file for the given project."""
+def _write_file_impl(project: str, content: str, filename: str = "MEMORY.md") -> str:
+    """Enforces schemas/memory-schema.json and the hard cap server-side for
+    MEMORY.md writes, via engine.py, so this holds for every caller, MCP or
+    REST, not only a Claude session that happened to follow SKILL.md's
+    prose correctly.
+
+    If `content` parses as a JSON object, it's treated as schema-shaped
+    state: validated, auto-consolidated via engine.consolidate if it's over
+    the hard cap, then rendered to the canonical Markdown template before
+    being persisted. That's the path that gets full enforcement.
+
+    Otherwise `content` is treated as pre-rendered Markdown (the original,
+    Claude-artifact behavior). It's still checked against the hard cap by
+    line/token count and rejected if over — engine.py has no Markdown
+    parser back to schema-shaped state yet, so auto-consolidation isn't
+    possible on this path. Pass structured JSON instead, or run
+    workflows/consolidate-memory.md and retry.
+
+    Raises ValueError on rejection. Any filename other than MEMORY.md is
+    stored as-is, unvalidated, exactly as before this existed.
+    """
+    if filename == "MEMORY.md":
+        state = None
+        try:
+            candidate = json.loads(content)
+        except (ValueError, TypeError):
+            candidate = None
+        if isinstance(candidate, dict):
+            state = candidate
+
+        if state is not None:
+            try:
+                engine.validate(state)
+            except Exception as exc:
+                # jsonschema.ValidationError's str(exc) dumps the entire
+                # schema for context; .message is the actual one-line
+                # reason and is what a caller trying to fix its request
+                # needs, not a page of schema JSON echoed back.
+                reason = getattr(exc, "message", None) or str(exc)
+                raise ValueError(f"rejected: does not conform to memory-schema.json: {reason}") from exc
+            if engine.over_cap(state):
+                state = engine.consolidate(state, dt.date.today().isoformat())
+                if engine.over_cap(state):
+                    raise ValueError(
+                        "rejected: still over the 120-line/~800-token hard cap even "
+                        "after server-side consolidation"
+                    )
+            content = engine.render_markdown(state)
+        elif (
+            engine.line_count(content) > engine.HARD_CAP_LINES
+            or engine.approx_token_count(content) > engine.HARD_CAP_TOKENS
+        ):
+            raise ValueError(
+                "rejected: over the 120-line/~800-token hard cap. Pass structured "
+                "JSON state instead of pre-rendered Markdown for automatic "
+                "server-side consolidation, or run workflows/consolidate-memory.md "
+                "and retry."
+            )
+
     path = _resolve(project, filename)
     path.write_text(content, encoding="utf-8")
 
@@ -137,19 +213,68 @@ def write_file(project: str, content: str, filename: str = "MEMORY.md") -> str:
     return f"wrote {len(content)} chars to {project}/{filename}{index_note}"
 
 
-@mcp.tool()
-def list_files(project: str) -> list[str]:
-    """List files currently stored for the given project."""
+def _list_files_impl(project: str) -> list[str]:
     project_dir = (DATA_ROOT / project).resolve()
     if project_dir.parent != DATA_ROOT or not project_dir.exists():
         return []
     return sorted(p.name for p in project_dir.iterdir() if p.is_file())
 
 
+def _list_projects_impl() -> list[str]:
+    return sorted(p.name for p in DATA_ROOT.iterdir() if p.is_dir())
+
+
+def _search_memory_impl(project: str, query: str, top_k: int = 5) -> list[str]:
+    project_dir = (DATA_ROOT / project).resolve()
+    if project_dir.parent != DATA_ROOT:
+        raise ValueError(f"invalid project name: {project!r}")
+    return memory_index.search(project_dir, query, top_k=top_k)
+
+
+def _classify_fact_impl(project: str, candidate_text: str, existing_context: str = "") -> dict:
+    """Local Laya-based tier/contradiction/duplicate classification for a
+    raw candidate fact — no LLM required to call it. This wraps the same
+    classifier Claude's own Phase 2 optionally cross-checks against (see
+    scripts/tier_screen.py), exposed here as a first-class operation so a
+    caller with no LLM in front of it (a CRM webhook, an ERP script, a
+    plain codebase) can still get a real tier decision on a fact, not just
+    an unstructured write. Degrades to a clean {"error": ...} if `laya`
+    isn't installed; never raises, never fabricates a result — the exact
+    contract tier_screen.py already guarantees for Claude's own use of it.
+    `project` is accepted for a consistent call shape with the other tools
+    and is reserved for future per-project classifier tuning; it isn't
+    used yet.
+    """
+    import tier_screen  # sys.path already extended to scripts/ at module load
+
+    return tier_screen.run_screen(
+        {"candidate_text": candidate_text, "existing_context": existing_context}
+    )
+
+
+@mcp.tool()
+def read_file(project: str, filename: str = "MEMORY.md") -> str:
+    """Read a memory file for the given project. Returns '' if it doesn't exist yet."""
+    return _read_file_impl(project, filename)
+
+
+@mcp.tool()
+def write_file(project: str, content: str, filename: str = "MEMORY.md") -> str:
+    """Write (overwrite) a memory file for the given project. See
+    _write_file_impl for the schema/hard-cap enforcement this now applies."""
+    return _write_file_impl(project, content, filename)
+
+
+@mcp.tool()
+def list_files(project: str) -> list[str]:
+    """List files currently stored for the given project."""
+    return _list_files_impl(project)
+
+
 @mcp.tool()
 def list_projects() -> list[str]:
     """List every project that currently has stored memory."""
-    return sorted(p.name for p in DATA_ROOT.iterdir() if p.is_dir())
+    return _list_projects_impl()
 
 
 @mcp.tool()
@@ -161,10 +286,14 @@ def search_memory(project: str, query: str, top_k: int = 5) -> list[str]:
     instead; this only helps find history that read_file can no longer
     surface in full. Returns an empty list if nothing has been indexed yet
     (e.g. write_file was never called, or nothing indexable was found)."""
-    project_dir = (DATA_ROOT / project).resolve()
-    if project_dir.parent != DATA_ROOT:
-        raise ValueError(f"invalid project name: {project!r}")
-    return memory_index.search(project_dir, query, top_k=top_k)
+    return _search_memory_impl(project, query, top_k)
+
+
+@mcp.tool()
+def classify_fact(project: str, candidate_text: str, existing_context: str = "") -> dict:
+    """Local Laya-based tier/contradiction/duplicate classification for a
+    raw candidate fact. See _classify_fact_impl for the full contract."""
+    return _classify_fact_impl(project, candidate_text, existing_context)
 
 
 _LOGIN_FORM = """<!doctype html>
@@ -209,6 +338,108 @@ async def login_submit(request: Request) -> Response:
     if redirect_url is None:
         return HTMLResponse(_LOGIN_INVALID, status_code=400)
     return RedirectResponse(redirect_url, status_code=302)
+
+
+def _rest_auth_error(request: Request) -> Response | None:
+    """None if the request may proceed, else the 401 to return.
+
+    Reuses the same SMARANA_LOGIN_PASSWORD already configured for the MCP
+    Connector flow (oauth_provider.check_password) — this is not a new
+    auth scheme, just the existing password gate applied to the plain REST
+    surface too, via `Authorization: Bearer <password>`. When no password
+    is configured, REST falls back to no auth, exactly like the MCP tools
+    already do without SMARANA_PUBLIC_HOST/SMARANA_LOGIN_PASSWORD set.
+    """
+    if oauth_provider is None:
+        return None
+    auth = request.headers.get("authorization", "")
+    token = auth[7:] if auth.lower().startswith("bearer ") else ""
+    if not token or not oauth_provider.check_password(token):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    return None
+
+
+@mcp.custom_route("/projects", methods=["GET"])
+async def rest_list_projects(request: Request) -> Response:
+    """Plain REST mirror of the list_projects MCP tool, for callers with
+    no MCP client (a CRM, an ERP, a plain script) — same DATA_ROOT, same
+    auth, same logic, just reached over ordinary JSON HTTP instead."""
+    if (err := _rest_auth_error(request)) is not None:
+        return err
+    return JSONResponse(_list_projects_impl())
+
+
+@mcp.custom_route("/projects/{project}/memory", methods=["GET"])
+async def rest_read_memory(request: Request) -> Response:
+    if (err := _rest_auth_error(request)) is not None:
+        return err
+    project = request.path_params["project"]
+    filename = request.query_params.get("filename", "MEMORY.md")
+    try:
+        content = _read_file_impl(project, filename)
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    return PlainTextResponse(content)
+
+
+@mcp.custom_route("/projects/{project}/memory", methods=["PUT"])
+async def rest_write_memory(request: Request) -> Response:
+    """Body is the raw content to write — either pre-rendered Markdown or a
+    JSON object matching memory-schema.json (see _write_file_impl). Content
+    type is read as plain text either way; a JSON body still arrives as
+    text and gets json.loads'd internally, exactly like the MCP tool."""
+    if (err := _rest_auth_error(request)) is not None:
+        return err
+    project = request.path_params["project"]
+    filename = request.query_params.get("filename", "MEMORY.md")
+    try:
+        content = (await request.body()).decode("utf-8")
+    except UnicodeDecodeError:
+        return JSONResponse({"error": "request body must be UTF-8 text"}, status_code=400)
+    try:
+        result = _write_file_impl(project, content, filename)
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=422)
+    return JSONResponse({"result": result})
+
+
+@mcp.custom_route("/projects/{project}/files", methods=["GET"])
+async def rest_list_files(request: Request) -> Response:
+    if (err := _rest_auth_error(request)) is not None:
+        return err
+    return JSONResponse(_list_files_impl(request.path_params["project"]))
+
+
+@mcp.custom_route("/projects/{project}/search", methods=["GET"])
+async def rest_search_memory(request: Request) -> Response:
+    if (err := _rest_auth_error(request)) is not None:
+        return err
+    project = request.path_params["project"]
+    query = request.query_params.get("query", "")
+    top_k = int(request.query_params.get("top_k", "5"))
+    try:
+        results = _search_memory_impl(project, query, top_k)
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    return JSONResponse(results)
+
+
+@mcp.custom_route("/projects/{project}/classify", methods=["POST"])
+async def rest_classify_fact(request: Request) -> Response:
+    """Body: {"candidate_text": "...", "existing_context": "..."}. This is
+    the route a non-LLM caller actually wants: a real tier/contradiction/
+    duplicate classification on a raw fact, with no LLM in the loop."""
+    if (err := _rest_auth_error(request)) is not None:
+        return err
+    project = request.path_params["project"]
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    candidate_text = str(body.get("candidate_text", ""))
+    existing_context = str(body.get("existing_context", ""))
+    result = _classify_fact_impl(project, candidate_text, existing_context)
+    return JSONResponse(result)
 
 
 def build_app():

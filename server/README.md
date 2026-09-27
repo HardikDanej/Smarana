@@ -1,11 +1,24 @@
 # Smaraṇa Memory Server
 
-A small remote MCP server that gives Smaraṇa a real `MCP` persistence mode
-instead of only the artifact (copy-paste) fallback. It exposes five tools —
-`read_file`, `write_file`, `list_files`, `list_projects`, `search_memory` —
-over streamable HTTP, matching the `mcp__filesystem__*` calls that
+A small remote memory server that gives Smaraṇa a real `MCP` persistence mode
+instead of only the artifact (copy-paste) fallback, and a plain JSON REST
+surface for any caller that isn't Claude and doesn't speak MCP at all: a
+CRM webhook, an ERP script, a codebase with no LLM in front of it. Same six
+tools either way — `read_file`, `write_file`, `list_files`, `list_projects`,
+`search_memory`, `classify_fact` — over streamable HTTP for MCP clients
+(matching the `mcp__filesystem__*` calls
 [`workflows/mcp-handshake.md`](../workflows/mcp-handshake.md) already
-expects.
+expects) or plain `/projects/...` HTTP routes for everyone else. See
+[REST: for callers with no MCP client](#rest-for-callers-with-no-mcp-client)
+below.
+
+`write_file` now enforces `memory-schema.json` and the 120-line/~800-token
+hard cap server-side, via `engine.py`, for structured JSON writes to
+`MEMORY.md` — a malformed state gets rejected outright, and a state over
+the cap gets auto-consolidated before it's persisted. This is what actually
+makes the tier structure real, for any caller, not just a Claude session
+that happened to follow `SKILL.md`'s prose well. See
+[Server-side enforcement on write](#server-side-enforcement-on-write).
 
 Each Claude Project you connect this to passes its own `project` name on
 every call, so one running server safely holds memory for many Projects —
@@ -131,13 +144,67 @@ automatically — no more copy-pasting `MEMORY.md` back into Knowledge.
 | Tool | Args | Behavior |
 |---|---|---|
 | `read_file` | `project`, `filename` (default `MEMORY.md`) | Returns file contents, or `""` if it doesn't exist yet |
-| `write_file` | `project`, `content`, `filename` (default `MEMORY.md`) | Overwrites the file, then re-indexes the project's aged-out memory for `search_memory` (see below) |
+| `write_file` | `project`, `content`, `filename` (default `MEMORY.md`) | Validates and persists (see below), then re-indexes the project's aged-out memory for `search_memory` |
 | `list_files` | `project` | Filenames currently stored for that project |
 | `list_projects` | — | Every project with at least one stored file |
 | `search_memory` | `project`, `query`, `top_k` (default 5) | Semantic search over that project's superseded/deprecated Tier 2 ADRs and Compressed Changelog entries — the history a plain `read_file` can no longer surface in full |
+| `classify_fact` | `project`, `candidate_text`, `existing_context` (default `""`) | Local Laya tier/contradiction/duplicate classification on a raw fact — no LLM required to call it. Same classifier `scripts/tier_screen.py` already gives Claude as an optional Phase 2 cross-check, exposed here as a first-class operation. Degrades to `{"error": ...}` if `laya` isn't installed; never raises |
 
 Paths are confined to `server/data/<project>/` — traversal outside it
 (`..`, absolute paths, nested slashes in `project`/`filename`) is rejected.
+
+## Server-side enforcement on write
+
+`write_file` behaves differently depending on the shape of `content`:
+
+- **A JSON object matching `memory-schema.json`.** Validated against the
+  schema and rejected with a one-line reason if it doesn't conform. If it's
+  over the hard cap, `engine.consolidate` runs server-side first (the same
+  dedup/collapse logic `workflows/consolidate-memory.md` specifies), and
+  the *result* of that consolidation is what gets rendered to Markdown and
+  persisted. This is the path that gets full enforcement, and the one a
+  non-LLM caller should actually write through.
+- **Anything else (pre-rendered Markdown, the original Claude-artifact
+  behavior).** Checked against the hard cap by line/token count and
+  rejected if over. `engine.py` has no Markdown parser back to
+  schema-shaped state yet, so a rejected Markdown write can't be
+  auto-consolidated the way a rejected JSON write can — pass structured
+  JSON instead, or run `workflows/consolidate-memory.md` and retry.
+
+Any filename other than `MEMORY.md` is stored as-is, unvalidated, exactly
+as before this existed.
+
+## REST: for callers with no MCP client
+
+Every tool above also has a plain JSON HTTP route, for a CRM, an ERP, or
+any script that can make an HTTP request but has no MCP client library and
+no LLM reasoning over `SKILL.md`'s prose:
+
+| Route | Method | Body / Query | Behavior |
+|---|---|---|---|
+| `/projects` | GET | — | Same as `list_projects` |
+| `/projects/{project}/memory` | GET | `?filename=` (default `MEMORY.md`) | Same as `read_file` |
+| `/projects/{project}/memory` | PUT | raw body = `content` | Same as `write_file`; `422` on rejection, with the reason in `{"error": "..."}` |
+| `/projects/{project}/files` | GET | — | Same as `list_files` |
+| `/projects/{project}/search` | GET | `?query=&top_k=` | Same as `search_memory` |
+| `/projects/{project}/classify` | POST | `{"candidate_text": "...", "existing_context": "..."}` | Same as `classify_fact` |
+
+**Auth.** If `SMARANA_PUBLIC_HOST`/`SMARANA_LOGIN_PASSWORD` are set, every
+REST route requires `Authorization: Bearer <SMARANA_LOGIN_PASSWORD>` — the
+same password already gating the OAuth login page, not a second scheme.
+With no password configured, REST falls back to no auth, exactly like the
+MCP tools already do.
+
+```bash
+curl -X PUT "https://<host>/projects/demo/memory" \
+  -H "Authorization: Bearer $SMARANA_LOGIN_PASSWORD" \
+  --data-binary @state.json
+
+curl -X POST "https://<host>/projects/demo/classify" \
+  -H "Authorization: Bearer $SMARANA_LOGIN_PASSWORD" \
+  -H "Content-Type: application/json" \
+  -d '{"candidate_text": "Switched session storage to Postgres.", "existing_context": "[ADR-001] Session storage: Redis."}'
+```
 
 ## Semantic search over aged-out memory
 
@@ -217,11 +284,21 @@ anyone else at it:
   (and restart the server) for an immediate, total reset of every
   registered client and token — the only way to force everyone to log in
   again right now.
-- **No server-side schema validation on write.** `write_file` stores
-  whatever content it's given; `memory-schema.json` conformance is enforced
-  by Claude following `mcp-handshake.md`'s instructions during a chat, not
-  by this server. A misbehaving client could write invalid `MEMORY.md`
-  content and the server won't stop it.
+- **Schema validation only covers structured JSON writes, not Markdown
+  ones.** A JSON `content` gets full `memory-schema.json` validation and
+  auto-consolidation on the server (see above). A pre-rendered Markdown
+  `content` only gets the hard-cap check — `engine.py` can check its line
+  count but can't yet parse it back into schema-shaped state to validate
+  tier structure or auto-consolidate it. A misbehaving client sending
+  Markdown could still write structurally invalid content, as long as it's
+  under the line/token cap.
+- **`classify_fact` needs `laya` installed to do anything.** Without it,
+  every call returns a clean `{"error": ...}`, never a crash — but the
+  endpoint exists and returns 200 either way, so a caller has to actually
+  read the `error` field rather than assume a 200 means a real
+  classification happened. See `scripts/README.md` for install and the
+  honest 3-10s CPU latency and calibration caveats; nothing about running
+  it from the server changes those numbers.
 - **No rate limiting or size limits.** Nothing stops a buggy or malicious
   client with a valid token from writing arbitrarily large content or
   hammering the server with requests.

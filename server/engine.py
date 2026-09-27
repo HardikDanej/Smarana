@@ -1,15 +1,20 @@
 """
-Reference implementation of the deterministic parts of the Smaraṇa pipeline:
-schema validation, rendering, consolidation/GC, and the idempotency check.
+The deterministic parts of the Smaraṇa pipeline: schema validation,
+rendering, consolidation/GC, and the idempotency check.
+
+Originally lived in tests/ as a reference implementation used only to prove
+this logic was internally consistent. server.py's write_file now imports
+this module directly and enforces it on every write, for every caller, MCP
+or plain REST, not just Claude: a write that fails schema validation is
+rejected, and a write that's over the hard cap gets consolidated before
+it's persisted. tests/test_pipeline.py still imports this same module, so
+the enforcement and the test suite can never drift apart.
 
 This does NOT implement Phase 2 (Tier Resolution) as an LLM would: deciding
-which tier a new, freeform fact belongs to is a judgment call Claude makes at
-runtime, not a deterministic function. Everything here operates on
-already-classified, schema-shaped data and tests the parts of the spec that
-ARE deterministic and therefore ARE testable: does the hard cap actually get
-enforced, does aged history actually collapse the way consolidate-memory.md
-says it should, is a no-op run actually a no-op, does every intermediate
-state actually validate against the schema.
+which tier a new, freeform fact belongs to is a judgment call, not a
+deterministic function here. That's what classify_fact (see server.py,
+wrapping scripts/tier_screen.py's Laya classifier) is for. Everything in
+this module operates on already-classified, schema-shaped data.
 """
 
 from __future__ import annotations

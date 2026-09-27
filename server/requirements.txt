@@ -2,3 +2,10 @@ mcp[cli]>=1.2
 python-dotenv>=1.0
 uvicorn>=0.30
 chromadb>=0.5
+jsonschema>=4.0,<5
+
+# Optional: only needed for classify_fact. server.py degrades classify_fact
+# to a clean {"error": ...} at call time if this isn't installed — it never
+# fails server startup or any other tool. See scripts/README.md for the
+# real latency and calibration caveats before relying on it.
+laya>=0.3.5
