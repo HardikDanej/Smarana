@@ -14,9 +14,10 @@ this same repository but in its own namespace so the two never collide:
 ## Status
 
 **V1 architecture frozen at 1.0.0, Adaptive Configuration Profiles added
-at 1.1.0** (`memory_os.__version__`). All 20 phases of the 100-step plan
-(Steps 31-100) plus Phase 21 are built, tested, and gated — `GATES.md`
-(35/35 met), 349/349 tests passing, both isolation gates (no
+at 1.1.0, GDPR named as the compliance target at 1.2.0**
+(`memory_os.__version__`). All 20 phases of the 100-step plan
+(Steps 31-100) plus Phases 21-22 are built, tested, and gated —
+`GATES.md` (37/37 met), 359/359 tests passing, both isolation gates (no
 LLM/network/vendor dependency in `core/memory_os`; `core/memory_os`
 never imports `core/adapters`) holding after every single addition since
 Phase 6.
@@ -29,12 +30,16 @@ explicitly deferred to V2 rather than silently dropped. Then
 100 steps): `TenantProfile` maps industry/application-type/business-type
 to default policy bundles, tag-based taxonomy extension, and retention
 rules — closing V1's own highest-priority named gap without reopening
-the freeze. Three earlier milestones still hold underneath all of it:
-**v0.1** (Step 50, the full observe→store→recall→context cycle,
-`tests/test_v0_1_milestone.py`), **v0.5** (Step 75, the multi-agent
-learning prototype, `tests/test_v0_5_milestone.py`), and Phase 17's
-production infrastructure (a real Postgres+pgvector backend, not just
-SQLite).
+the freeze. Then `docs/GDPR_COMPLIANCE.md` (Phase 22): GDPR named as the
+compliance target, with a real article-by-article mapping of what's
+built (`data_subject_rights.py`'s Articles 15/17/20, `TenantProfile`'s
+recorded-not-enforced data residency) against what stays organizational
+or legal, honestly, rather than claimed as solved by code. Three earlier
+milestones still hold underneath all of it: **v0.1** (Step 50, the full
+observe→store→recall→context cycle, `tests/test_v0_1_milestone.py`),
+**v0.5** (Step 75, the multi-agent learning prototype,
+`tests/test_v0_5_milestone.py`), and Phase 17's production infrastructure
+(a real Postgres+pgvector backend, not just SQLite).
 
 `core/adapters/` (plus `core/api`, `core/sdk`, and `core/mcp_server`,
 which depend on the engine but never the reverse) is the only place any
@@ -72,7 +77,8 @@ core/
 │   ├── reliability.py       # FailureInjectingStorageAdapter
 │   ├── backup.py           # export/import over StorageAdapter + RelationshipGraph
 │   ├── profiles.py         # Phase 21: TenantProfile, PolicyDefaults, RetentionPolicy, TenantProfileStore
-│   └── retention.py        # Phase 21: sweep_expired_memories() -- marks aged-out memories FORGOTTEN
+│   ├── retention.py        # Phase 21: sweep_expired_memories() -- marks aged-out memories FORGOTTEN
+│   └── data_subject_rights.py  # Phase 22: find/export/erase_data_subject() -- GDPR Articles 15/17/20
 ├── adapters/                # the ONLY place vendor/storage tech is imported
 │   ├── claude_provider.py
 │   ├── sqlite_adapter.py
@@ -96,8 +102,8 @@ core/
 ├── scripts/                 # gate-check verification scripts (no-LLM-dep, adapter-isolation)
 ├── docs/                    # THREAT_MODEL.md, POSTGRES_RLS.md, POSTGRES_SETUP.md,
 │                            # ADAPTER_ECOSYSTEM.md, V1_ARCHITECTURE.md (start here),
-│                            # ADAPTIVE_PROFILES.md
-├── GATES.md                 # unlazy verified-completion ledger, 35/35 met
+│                            # ADAPTIVE_PROFILES.md, GDPR_COMPLIANCE.md
+├── GATES.md                 # unlazy verified-completion ledger, 37/37 met
 ├── requirements.txt
 └── requirements-dev.txt
 ```

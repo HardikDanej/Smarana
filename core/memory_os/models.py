@@ -248,6 +248,21 @@ class MemoryObject(BaseModel):
 
     memory_class: MemoryClass = MemoryClass.INFORMATION
 
+    data_subject_ids: list[str] = Field(default_factory=list)
+    """Phase 22 (compliance target: GDPR): the real person or people this
+    memory's content is about, when that's someone other than
+    `owner_id`. GDPR's rights (Article 15 access, Article 17 erasure,
+    Article 20 portability) belong to a data subject -- a person -- not
+    a tenant or an agent; `owner_id` in this codebase usually names the
+    agent/system that manages a memory, which is a different question
+    from whose personal data it contains. A healthcare tenant's memory
+    about a patient is a clear example: the patient is a data subject
+    here even though they never touch this system as a principal.
+    data_subject_rights.py's erase_data_subject()/export_data_subject()
+    are what read this field; nothing else in this codebase does, the
+    same "no special handling unless a module explicitly reads it"
+    discipline `tags` (Phase 21) already established."""
+
     object_ref: str | None = None
     """Step 90: a reference into an ObjectStore for memories whose real
     content is binary (Modality.FILES/BINARY_OBJECT/IMAGE/AUDIO/VIDEO/...)

@@ -115,3 +115,18 @@ def test_no_profile_falls_back_to_memory_objects_own_hardcoded_default():
     assert sensitivity == PrivacyLevel.INTERNAL
     assert categories == []
     assert tags == []
+
+
+# --- Phase 22 (compliance target: GDPR): data residency ---
+
+
+def test_data_residency_region_defaults_to_none():
+    profile = TenantProfile.for_industry("t1", Industry.GENERAL, ApplicationType.B2B_SAAS, BusinessType.B2B)
+    assert profile.data_residency_region is None
+
+
+def test_data_residency_region_can_be_declared():
+    profile = TenantProfile.for_industry(
+        "t1", Industry.HEALTHCARE, ApplicationType.B2B_SAAS, BusinessType.B2B, data_residency_region="eu"
+    )
+    assert profile.data_residency_region == "eu"

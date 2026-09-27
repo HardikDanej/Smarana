@@ -100,6 +100,16 @@ class TenantProfile:
     business_type: BusinessType
     policy_defaults: PolicyDefaults = field(default_factory=PolicyDefaults)
     retention: RetentionPolicy = field(default_factory=RetentionPolicy)
+    data_residency_region: "str | None" = None
+    """Phase 22 (compliance target: GDPR, Articles 44-49): records that
+    this tenant's data must stay within a named region (e.g. "eu") --
+    it does not enforce it. Which physical region a PostgresAdapter's
+    database actually runs in is an infrastructure/deployment decision
+    (which host, which cloud region), not something Python code running
+    inside that already-provisioned database can control or verify.
+    None means no residency requirement was declared, not "anywhere is
+    fine" -- a deployer who cares checks this field against where they
+    actually provisioned storage, not the other way around."""
 
     @classmethod
     def for_industry(
@@ -111,6 +121,7 @@ class TenantProfile:
         *,
         policy_defaults: "PolicyDefaults | None" = None,
         retention: "RetentionPolicy | None" = None,
+        data_residency_region: "str | None" = None,
     ) -> "TenantProfile":
         """Builds a profile starting from that industry's reasonable
         defaults (below), with `policy_defaults`/`retention` as an
@@ -124,6 +135,7 @@ class TenantProfile:
             business_type=business_type,
             policy_defaults=policy_defaults if policy_defaults is not None else _DEFAULT_POLICY_BUNDLES[industry],
             retention=retention if retention is not None else _DEFAULT_RETENTION[industry],
+            data_residency_region=data_residency_region,
         )
 
 

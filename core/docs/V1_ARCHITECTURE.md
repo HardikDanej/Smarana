@@ -1,13 +1,15 @@
 # V1 Architecture Package (Plan Step 100)
 
-**Status: frozen at 1.0.0, gap #1 closed at 1.1.0.** Phase 21 (not one
-of the plan's original 100 steps) built Adaptive Configuration
-Profiles — see `docs/ADAPTIVE_PROFILES.md` — closing gap #1 in this
-document's own closing list below. That's additive and backward
-compatible, not a reopening of the freeze: nothing in the 32 sections
-below changed shape, and gap #1's entry is left in place as the
-historical record, with a forward reference, the same way
-`docs/POSTGRES_RLS.md` handled its own later closure.
+**Status: frozen at 1.0.0, gap #1 closed at 1.1.0, gap #2 closed (and
+gap #7 partially closed) at 1.2.0.** Phase 21 (not one of the plan's
+original 100 steps) built Adaptive Configuration Profiles — see
+`docs/ADAPTIVE_PROFILES.md` — closing gap #1 below. Phase 22 named GDPR
+as the compliance target and built data subject rights — see
+`docs/GDPR_COMPLIANCE.md` — closing gap #2 and part of gap #7. Both are
+additive and backward compatible, not a reopening of the freeze: nothing
+in the 32 sections below changed shape, and each closed gap's entry is
+left in place as the historical record, with a forward reference, the
+same way `docs/POSTGRES_RLS.md` handled its own later closure.
 
 **Status: frozen.** `memory_os.__version__ == "1.0.0"`. This is the
 plan's own "32-document specification package (Constitution through
@@ -368,7 +370,15 @@ carried forward here as the freeze's own record of what's V2:
    `tags`-based taxonomy extension, and retention rules, at
    tenant-registration time. Left in place as the historical record of
    this being V1's own highest-priority named gap.
-2. **No named compliance target** (SOC 2 / HIPAA / GDPR / ISO 27001).
+2. ~~**No named compliance target**~~ **Closed at 1.2.0** (Phase 22,
+   `docs/GDPR_COMPLIANCE.md`): GDPR named as the target, following from
+   who the platform actually serves (any customer, any region, including
+   the EU). Article-by-article mapping of what's real, what's newly
+   closed (data subject rights, Articles 15/17/20), and what stays
+   organizational (breach notification, DPAs, an EU representative,
+   Article 30's processing register, DPIAs) — never claimed as solved by
+   code. Left in place as the historical record of this being unnamed at
+   the V1 freeze.
 3. **No metering or cost-attribution model** per tenant/project.
 4. **No schema migration tooling** (Alembic or equivalent) for a live
    Postgres deployment with real tenants.
@@ -378,7 +388,12 @@ carried forward here as the freeze's own record of what's V2:
 6. **No retrieval-time prompt-injection red-teaming** — Step 77 covers
    write-time poisoning; a legitimately-trusted stored memory crafted to
    hijack retrieval-time reasoning is a distinct, untested surface.
-7. **No data residency / DPA story.**
+7. **No data residency / DPA story.** *Partially addressed at 1.2.0*:
+   `TenantProfile.data_residency_region` (Phase 22) records a residency
+   requirement; it does not enforce it (which physical region a database
+   runs in is a deployment decision, not something the Python code
+   running inside it can control) and the DPA story itself is unchanged
+   — still organizational/legal, per `docs/GDPR_COMPLIANCE.md`.
 8. **Adapter certification is closed for StorageAdapter (Section 9);
    versioning is not** — no Protocol in this codebase carries a version
    number or a compatibility policy for when its shape changes.

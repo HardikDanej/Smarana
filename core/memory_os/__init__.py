@@ -2,14 +2,18 @@
 100, docs/V1_ARCHITECTURE.md's 32-section specification). 1.1.0 (Phase
 21) adds Adaptive Configuration Profiles -- additive and backward
 compatible, closing the plan's own highest-priority self-flagged gap
-without reopening the freeze: see docs/ADAPTIVE_PROFILES.md."""
+without reopening the freeze: see docs/ADAPTIVE_PROFILES.md. 1.2.0
+(Phase 22) names GDPR as the compliance target (gap #2) and adds data
+subject rights (Articles 15/17/20) plus a recorded, not enforced, data
+residency field on TenantProfile: see docs/GDPR_COMPLIANCE.md."""
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 from .access_control import AccessPolicy, Permission, can_access_tenant, most_specific, share_to_scope
 from .audit import AuditEntry, AuditLog
 from .backup import export_memories, export_relationships, import_memories, import_relationships
 from .classifier import Classification, RuleBasedClassifier
+from .data_subject_rights import erase_data_subject, export_data_subject, find_memories_for_data_subject
 from .compression import MemoryCompressor, deduplicate, drop_stale_or_low_confidence
 from .conflict import ConflictResolver, UncertainBelief, apply_correction, resolve_uncertain
 from .context_engine import ContextEngine, MemoryContext
@@ -120,6 +124,8 @@ __all__ = [
     "deduplicate",
     "drop_stale_or_low_confidence",
     "Embedder",
+    "erase_data_subject",
+    "export_data_subject",
     "export_memories",
     "export_relationships",
     "Encryptor",
@@ -127,6 +133,7 @@ __all__ = [
     "EXTRACTION_SCHEMA",
     "ExtractionPipeline",
     "FailureInjectingStorageAdapter",
+    "find_memories_for_data_subject",
     "GraphExpander",
     "HashingEmbedder",
     "import_memories",
