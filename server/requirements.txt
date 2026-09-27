@@ -1,5 +1,5 @@
 mcp[cli]>=1.2
-python-dotenv>=1.0
+python-dotenv>=1.2.3
 uvicorn>=0.30
 chromadb>=0.5
 jsonschema>=4.0,<5
