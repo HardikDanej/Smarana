@@ -1,0 +1,6 @@
+-r requirements.txt
+-r adapters/requirements.txt
+-r api/requirements.txt
+-r sdk/requirements.txt
+-r mcp_server/requirements.txt
+pytest>=8.0,<9
