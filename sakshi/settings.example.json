@@ -1,0 +1,29 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "*", "hooks": [{ "type": "command", "command": "python \"<path-to-smarana>/sakshi/hook.py\"", "timeout": 10 }] }
+    ],
+    "PostToolUse": [
+      { "matcher": "*", "hooks": [{ "type": "command", "command": "python \"<path-to-smarana>/sakshi/hook.py\"", "timeout": 10 }] }
+    ],
+    "SubagentStart": [
+      { "matcher": "*", "hooks": [{ "type": "command", "command": "python \"<path-to-smarana>/sakshi/hook.py\"", "timeout": 10 }] }
+    ],
+    "PreCompact": [
+      { "matcher": "*", "hooks": [{ "type": "command", "command": "python \"<path-to-smarana>/sakshi/hook.py\"", "timeout": 10 }] }
+    ],
+    "FileChanged": [
+      {
+        "matcher": "MEMORY.md",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"<path-to-smarana>/sakshi/laya_score.py\"",
+            "async": true,
+            "timeout": 120
+          }
+        ]
+      }
+    ]
+  }
+}

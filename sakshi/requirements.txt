@@ -1,0 +1,8 @@
+# Optional. Only needed for the Laya-scored decision-ranking step
+# (laya_score.py) — see README.md, "Laya-scored decision ranking". Nothing
+# else in sakshi/ needs anything beyond the Python standard library; the hot
+# dispatch path in hook.py never imports laya, directly or indirectly.
+#
+# Same package, same pin, as the repo root's scripts/requirements.txt (Phase
+# 2's tier-screen cross-check) — install once, both features work.
+laya>=0.3.5
