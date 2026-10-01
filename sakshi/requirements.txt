@@ -5,4 +5,4 @@
 #
 # Same package, same pin, as the repo root's scripts/requirements.txt (Phase
 # 2's tier-screen cross-check) — install once, both features work.
-laya>=0.3.5
+laya>=0.3.21
