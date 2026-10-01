@@ -71,7 +71,7 @@ jobs:
         # default embedding model (~80MB) on first use. Without this, every
         # CI run re-downloads it from scratch. Keyed on the server
         # dependency file so a chromadb version bump gets a fresh model.
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/chroma
           key: chroma-onnx-model-${{ hashFiles('server/requirements.txt') }}
