@@ -8,4 +8,4 @@ jsonschema>=4.0,<5
 # to a clean {"error": ...} at call time if this isn't installed — it never
 # fails server startup or any other tool. See scripts/README.md for the
 # real latency and calibration caveats before relying on it.
-laya>=0.3.5
+laya>=0.3.21
